@@ -11,14 +11,13 @@
 #include <string>
 #include <map>
 #include <iostream>
+#include "llvm-includes.h"
 
 typedef struct symbol {
     std::string 	name;
     std::string 	description;
     std::string 	type;
     int         	len; /* used for array variables */
-    int 			line;
-    int 			column;
     bool			assigned;
     bool			is_array;
 } symbol;
@@ -57,12 +56,14 @@ public:
 	bool getJumpOn();
 	bool getJumpAlways();
 
-	void walkTreeGenerateIR();
 	void walkTreePrint(int depth=0);
-	int walkTreeCheckSymbols(int scope=0);
-	void walkTreeGenerateIR();
 
-	void setLoc(int line, int column);
+	// For Semantic Analysis
+	int walkTreeCheckSymbols(int scope=0);
+
+	// For Generating IR
+	void walkTreeGenerateIR();
+	void codegen();
 
 private:
 
@@ -84,8 +85,6 @@ private:
 
 	int val;
 	bool raw_val;
-	int line;
-	int column;
 	bool has_id;
 
 };

@@ -51,11 +51,6 @@ Node::~Node(){
 	*/
 }
 
-void Node::setLoc(int l, int c){
-	line = l;
-	column = c;
-}
-
 void Node::setName(std::string s){
 	attributes["name"] = s;
 }
@@ -414,6 +409,14 @@ int Node::walkTreeCheckSymbols(int scope){
 	return success;
 }
 
+// Perform initial setup required to generate IR using llvm
 void Node::walkTreeGenerateIR(){
+
+}
+
+// Recursive method to generate code for each node
+// This behavior will be defined based on the type
+// of node we are dealing with
+void Node::codegen(){
 
 }
