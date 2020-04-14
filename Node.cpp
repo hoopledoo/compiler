@@ -383,14 +383,18 @@ int Node::walkTreeCheckSymbols(int scope){
 					attributes["name"] == "ADD" or 
 					attributes["name"] == "SUB" or 
 					attributes["name"] == "MULT" or 
-					attributes["name"] == "DIV"){
+					attributes["name"] == "DIV")
+			{
 				if(right_child->has_id) {
 					if(not checkAssigned(right_child->getID(), scope)) success = false;
 				}
 				if(left_child->has_id){
 					if(not checkAssigned(left_child->getID(),scope)) success = false;
 				}
-				
+			}
+
+			else if(attributes["name"] == "RETURN"){
+				// TODO: implement semantic checking of RETURNs
 			}
 
 		} 
@@ -408,4 +412,8 @@ int Node::walkTreeCheckSymbols(int scope){
 
 	if(scope_change) cleanupTable(scope--);
 	return success;
+}
+
+void Node::walkTreeGenerateIR(){
+
 }

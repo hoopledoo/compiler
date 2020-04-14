@@ -26,6 +26,7 @@ int otherfunc(void){
 		int a;
 		{
 			int a;
+			return a;
 		}
 	}
 }

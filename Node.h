@@ -60,6 +60,7 @@ public:
 	void walkTreeGenerateIR();
 	void walkTreePrint(int depth=0);
 	int walkTreeCheckSymbols(int scope=0);
+	void walkTreeGenerateIR();
 
 	void setLoc(int line, int column);
 

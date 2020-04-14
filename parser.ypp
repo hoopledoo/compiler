@@ -604,10 +604,23 @@ args:
 
 argList:            
     argList COMMA expression {
-        $$ = new Node("argList"); 
-        $$->setLeftChild($1);
+
+        // maintain a argList 'overnode'
+        $$ = new Node("argList");
+
+        // Handle updating leftmost node in list
+        if($1->getName() == "argList") { $$->setLeftChild($1->getLeftChild()); }
+        else { $$->setLeftChild($1); }
+
+        // Handle updating rightmost node in list
+        if($1->getName() == "argList") { ($1->getRightChild())->setRightSib($3); }
+        else { $1->setRightSib($3); }
         $$->setRightChild($3);
-        $1->setRightSib($3);
+
+        //$$ = new Node("argList"); 
+        //$$->setLeftChild($1);
+        //$$->setRightChild($3);
+        //$1->setRightSib($3);
     }
     | expression {
          $$ = $1; 
