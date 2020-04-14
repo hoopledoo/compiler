@@ -3,7 +3,11 @@
 default:
 	bison -d parser.ypp
 	flex -o scanner.c scanner.l 
-	clang++ -g -o compiler parser.tab.cpp scanner.c driver.cpp Node.cpp
+	clang++ -g parser.tab.cpp scanner.c driver.cpp Node.cpp \
+				$(shell llvm-config --cxxflags --ldflags --libs core) \
+				-ltinfo \
+				-lpthread \
+				-o compiler
 
 clean: 
 	rm -f parser.tab.*

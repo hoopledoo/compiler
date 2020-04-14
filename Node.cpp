@@ -6,6 +6,7 @@
  ********************************************************/
 
 #include "Node.h"
+#include "llvm-include.h"
 
 Node::Node(){
 	// Initialize all Children to 0
