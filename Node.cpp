@@ -75,7 +75,7 @@ void Node::setID(std::string s){
 
 std::string Node::getName() {
 	if (attributes.count("name")) 	return attributes["name"];
-	else 	{std::cout << "returning 0" << std::endl; return 0;}
+	else 	return 0;
 }
 
 std::string Node::getLabel(){
@@ -261,7 +261,6 @@ int checkAssigned(std::string id, int scope){
 	for(int i=scope; i>=0; i--){
 		if(not symbolTable[i].empty() and symbolTable[i].count(id)){
 			if(symbolTable[i][id].assigned){
-				std::cout << id << " found as assigned within scope " << scope << std::endl;
 				assigned = true;
 				scope_found = i;
 				break;
@@ -319,6 +318,7 @@ int Node::walkTreeCheckSymbols(int scope){
         		s.len = 0;  
         		s.description = "var";
         		s.is_array = false;
+        		s.assigned = false;
         		if(not addSymbol(s, scope)) success = false;
 			}
 			else if (attributes["name"] == "arrayVarDec"){
@@ -328,6 +328,7 @@ int Node::walkTreeCheckSymbols(int scope){
         		s.len = left_child->right_sib->right_sib->val;  
         		s.description = "arrayVar";
         		s.is_array = true;
+        		s.assigned = false;
         		if(not addSymbol(s, scope)) success = false;
 			}
 			else if (attributes["name"] == "param" ){
@@ -337,6 +338,7 @@ int Node::walkTreeCheckSymbols(int scope){
         		s.len = 0;  
         		s.description = "param";
         		s.is_array = false;
+        		s.assigned = true;
         		if(not addSymbol(s, scope+1)) success = false;
 			}
 			else if (attributes["name"] == "arrayParam" ){
@@ -346,6 +348,7 @@ int Node::walkTreeCheckSymbols(int scope){
         		s.len = 0;  
         		s.description = "paramPtr";
         		s.is_array = true;
+        		s.assigned = true;
         		if(not addSymbol(s, scope+1)) success = false;
 			}			
 			else if (attributes["name"] == "compoundStmt" ){
