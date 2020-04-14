@@ -1,0 +1,45 @@
+int a;
+int b;
+int array[20];
+
+int function(int ar[], int a, int b){
+	int ar[30];
+	int a;
+	int b;
+	int c;
+
+	b = c + ar[20];
+
+	i = 0;
+	a[1] = 4;
+	b = 5;
+	c = 0;
+
+	if(a==(b+c)) c = a+b;
+
+	while(i < b) i = i + 1;
+
+	otherfunc();
+	return c;
+}
+
+int function(void){
+	
+}
+
+int otherfunc(void){
+	int a;
+	{
+		int a;
+		{
+			int a;
+		}
+	}
+}
+
+int thirdfunc(int big[], int bigger[]){
+	int z;
+	if(a==b) big = a;
+	else bigger = a;
+	otherfunc();
+}

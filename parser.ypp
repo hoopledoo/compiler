@@ -1,0 +1,625 @@
+/********************************************************
+ * Tyler Wolf parser for C- 04/10/2020
+ * 
+ * This file defines the parser for our compiler project
+ * It defines the types of tokens, as well as the grammar rules
+ * To build, we use `make` -- see the Makefile
+ ********************************************************/
+%{
+#include "driver.h"
+
+#define JTAG "jump_tag_"
+
+// -- Lexer prototype required by bison, aka getNextToken()
+int yylex();
+int yyerror(const char *p);
+
+extern Node* root;
+
+int jump_tag_id = 0;
+
+%}
+
+%locations
+
+%token      
+ LPAREN      
+ RPAREN      
+ LBRACKET    
+ RBRACKET    
+ LBRACE      
+ RBRACE      
+ LTE         
+ LT          
+ GTE         
+ GT          
+ EQ          
+ NEQ         
+ ASSIGN           
+ SEMI        
+ COMMA       
+;
+
+%left ADD SUB;
+%left MULT DIV;
+
+%token
+ ELSE    
+ IF        
+ INT     
+ RETURN     
+ VOID        
+ WHILE  
+;
+
+%union {
+    char const *string;
+    int integer;
+    Node* node;
+}
+
+%token <string> ID
+%token <integer> NUM
+
+%type <node> declarationList
+%type <node> declaration
+%type <node> varDeclaration
+%type <string> typeSpecifier
+%type <node> funDeclaration
+%type <node> params
+%type <node> paramList
+%type <node> param
+%type <node> compoundStmt
+%type <node> statementList
+%type <node> statement
+%type <node> expressionStmt
+%type <node> expression
+%type <node> localDeclarations
+%type <node> selectionStmt
+%type <node> iterationStmt
+%type <node> returnStmt
+%type <node> var
+%type <node> simpleExpression
+%type <node> relop
+%type <node> additiveExpression
+%type <node> addop
+%type <node> term
+%type <node> mulop
+%type <node> factor
+%type <node> call
+%type <node> argList
+%type <node> args
+
+// -- GRAMMAR RULES ---------------------------------------
+%%
+
+%start program;
+
+program:             
+    declarationList {
+        root = $1; 
+    }
+;
+
+declarationList:    
+    declarationList declaration {
+        // maintain a declarationList 'overnode'
+    	$$ = new Node("declarationList");
+
+        // Handle updating leftmost node in list
+        if($1->getName() == "declarationList") { $$->setLeftChild($1->getLeftChild()); }
+        else { $$->setLeftChild($1); }
+
+        // Handle updating rightmost node in list
+        if($1->getName() == "declarationList") { ($1->getRightChild())->setRightSib($2); }
+        else { $1->setRightSib($2); }
+        $$->setRightChild($2);
+    }
+    | declaration {
+        $$ = $1;
+    }
+;
+
+declaration:         
+    varDeclaration {
+         $$ = $1; 
+    } 
+    | funDeclaration {
+         $$ = $1; 
+    }
+;
+
+varDeclaration:     
+    typeSpecifier ID SEMI { 
+    	$$ = new Node("varDec");
+    	$$->setLeftChild(new Node($1));
+
+        Node* id = new Node("ID");
+        id->setID($2);
+
+        ($$->getLeftChild())->setRightSib(id);
+    	$$->setRightChild(id);
+    }
+    | typeSpecifier ID LBRACKET NUM RBRACKET SEMI {
+        $$ = new Node("arrayVarDec");
+        $$->setLeftChild(new Node($1));
+
+        Node* id = new Node("ID");
+        id->setID($2);
+
+        ($$->getLeftChild())->setRightSib(id);
+        id->setRightSib(new Node($4));
+        $$->setRightChild(id->getRightSib());
+    }
+;
+
+typeSpecifier:      
+    INT {
+        $$ = "INT";
+        } 
+    | VOID {
+        $$ = "VOID"; 
+    }
+;
+
+funDeclaration:     
+    typeSpecifier ID LPAREN params RPAREN compoundStmt {
+        $$ = new Node("funcDec");
+        $$->setLeftChild(new Node($1));
+
+        Node* id = new Node("ID");
+        id->setID($2);
+
+        ($$->getLeftChild())->setRightSib(id);
+        id->setRightSib($4);
+        $4->setRightSib($6);
+        $$->setRightChild($6);
+    }
+;
+
+params:              
+    paramList {
+         $$ = $1; 
+    }
+    |VOID {
+        $$ = new Node("VOID");
+    }
+;
+
+paramList:          
+    paramList COMMA param {
+        // maintain a paramList 'overnode'
+        $$ = new Node("paramList");
+
+        // Handle updating leftmost node in list
+        if($1->getName() == "paramList") { $$->setLeftChild($1->getLeftChild()); }
+        else { $$->setLeftChild($1); }
+
+        // Handle updating rightmost node in list
+        if($1->getName() == "paramList") { ($1->getRightChild())->setRightSib($3); }
+        else { $1->setRightSib($3); }
+        $$->setRightChild($3);
+    }
+    | param {
+         $$ = $1; 
+    }
+;
+
+param:               
+    typeSpecifier ID {
+        $$ = new Node("param");
+        $$->setLeftChild(new Node($1));
+
+        Node* id = new Node("ID");
+        id->setID($2);
+
+        ($$->getLeftChild())->setRightSib(id);
+        $$->setRightChild(id);
+
+    }
+    | typeSpecifier ID LBRACKET RBRACKET {
+        $$ = new Node("arrayParam");
+        $$->setLeftChild(new Node($1));
+
+        Node* id = new Node("ID");
+        id->setID($2);
+
+        ($$->getLeftChild())->setRightSib(id);
+        $$->setRightChild(id);
+    }
+;
+
+compoundStmt:       
+    LBRACE localDeclarations statementList RBRACE {
+        $$ = new Node("compoundStmt");
+
+        if($2 and $3){
+            $$->setLeftChild($2);
+            $$->setRightChild($3);
+            $2->setRightSib($3);
+        }
+        else if($2){
+            $$->setLeftChild($2);
+        }
+        else if($3){
+            $$->setLeftChild($3);
+        }
+        else{
+            $$ = 0;
+        }
+    }
+;
+
+localDeclarations:  
+    localDeclarations varDeclaration {
+        // maintain a localDeclarations 'overnode'
+        $$ = new Node("localDeclarations");
+
+        // Handle recursive case (where the left child is a localDeclarations node)
+        if ($1 and $1->getName() == "localDeclarations"){
+
+            Node* left = $1->getLeftChild();
+            Node* right = $1->getRightChild();
+
+            // Handle various cases (recall localDeclarations->left_child can return Null)
+            if(left) $$->setLeftChild(left);
+            else if(right) $$->setLeftChild(right);
+            else std::cerr << "localDeclarations parse error - both recursions returned null. This should never happen." << std::endl;
+
+            // Update the right child
+            if(right) {
+                right->setRightSib($2);
+                $$->setRightChild($2);
+            }
+            else{
+                ($$->getLeftChild())->setRightSib($2);
+                $$->setRightChild($2);
+            }
+        }
+
+        // Handle the case where localDeclarations is Null but varDeclaration isn't
+        else{
+            if($2) $$->setLeftChild($2);
+            else std::cerr << "localDeclarations parse error - varDeclaration returned null. This should never happen." << std::endl;
+        }
+    }
+    | %empty { $$ = 0; }
+;
+
+statementList:      
+    statementList statement {
+        // maintain a stmtList 'overnode'
+        $$ = new Node("stmtList");
+
+        // Handle recursive case (where the left child is a statementList node)
+        if ($1 and $1->getName() == "stmtList"){
+            Node* left = $1->getLeftChild();
+            Node* right = $1->getRightChild();
+
+            // Handle various cases (recal stmtList->left_child can return Null)
+            if(left) $$->setLeftChild(left);
+            else if(right) $$->setLeftChild(right);
+            else std::cerr << "stmtList parse error - both recursions returned null. This should never happen." << std::endl;
+
+            // Update the right child
+            if(right) {
+                right->setRightSib($2);
+                $$->setRightChild($2);
+            }
+            else{
+                ($$->getLeftChild())->setRightSib($2);
+                $$->setRightChild($2);
+            }
+        }
+
+        // Handle the case where statementList is Null but statement isn't
+        else{
+            if($2) $$->setLeftChild($2);
+            else std::cerr << "stmtList parse error - statement returned null. This should never happen." << std::endl;
+        }
+    }
+    | %empty { $$ = 0; }
+;
+
+statement:           
+    expressionStmt { $$ = $1; }
+    | compoundStmt { $$ = $1; }
+    | selectionStmt { $$ = $1; }
+    | iterationStmt { $$ = $1; }
+    | returnStmt { $$ = $1; }
+;
+
+expressionStmt:     
+    expression SEMI { $$ = $1; }
+    | SEMI { $$ = 0; }
+;
+
+selectionStmt:      
+    IF LPAREN expression RPAREN statement {
+
+        // create our if-scope
+        $$ = new Node("if-scope");
+
+        // create end-if node
+        Node* endif = new Node("end-if");
+        endif->setLabel(JTAG + std::to_string(jump_tag_id++));
+        $$->setRightChild(endif);
+
+        // create the if condition node
+        Node* cond = new Node("cond");
+        $$->setLeftChild(cond);
+
+        // Set the condition's only child as the expression to evaluate
+        cond->setLeftChild($3);
+
+        // we want to jump to the end of the if, if the condition is false
+        cond->setJumpOn(false);
+        cond->setJumpTo(endif->getLabel());
+        
+
+        // Create the "then" node. 
+        // this will be the right sib of cond
+        // and it will be evaluated assuming the condition is true
+        Node* then = new Node("then");
+        then->setLeftChild($5);
+
+        // Connect our if-scope
+        cond->setRightSib(then);
+        then->setRightSib(endif);
+
+    }
+    | IF LPAREN expression RPAREN statement ELSE statement {
+
+        //                  create our if-scope
+        $$ = new Node("if-scope");
+
+        //                  create else node
+        // - Give our else node a label
+        // - Set the else's only child as the stmt
+        Node* else_node = new Node("else");
+        else_node->setLabel(JTAG + std::to_string(jump_tag_id++));
+        else_node->setLeftChild($7);
+
+
+        //                  create the end-if node
+        Node* endif = new Node("end-if");
+        endif->setLabel(JTAG + std::to_string(jump_tag_id++));
+        $$->setRightChild(endif);
+
+        //                  create the jmp-to-end node 
+        // -we want to do this after executing statement before evaluating else stmt
+        Node* jmp2end = new Node("jmp-to-end");
+        jmp2end->setJumpTo(endif->getLabel());
+        jmp2end->setJumpAlways();
+
+        //                  create the if condition node
+        // - Set the condition's only child as the expression to evaluate
+        // - we want to jump to the else if the condition is false
+        Node* cond = new Node("cond");
+        $$->setLeftChild(cond);
+        cond->setLeftChild($3);
+        cond->setJumpOn(false);
+        cond->setJumpTo(else_node->getLabel());
+
+        //                  Create the "then" node. 
+        // - this will be the right sib of cond
+        // - and it will be evaluated assuming the condition is true
+        // - the only child of then is its associated stmt
+        Node* then = new Node("then");
+        then->setLeftChild($5);
+
+        // Connect our if-scope
+        cond->setRightSib(then);
+        then->setRightSib(jmp2end);
+        jmp2end->setRightSib(else_node);
+        else_node->setRightSib(endif);
+    }
+;
+
+iterationStmt:      
+    WHILE LPAREN expression RPAREN statement {
+
+        //                  create our while-scope
+        $$ = new Node("while-scope");
+
+        //                  create the end-while node
+        Node* endwhile = new Node("end-while");
+        endwhile->setLabel(JTAG + std::to_string(jump_tag_id++));
+        $$->setRightChild(endwhile);
+
+        //                  create cond node
+        // - Give our cond node a label
+        // - we want to jump to end if condition is false
+        // - Set the cond's only child as the expression
+        Node* cond = new Node("cond");
+        cond->setLabel(JTAG + std::to_string(jump_tag_id++));
+        cond->setJumpTo(endwhile->getLabel());
+        cond->setJumpOn(false);
+        cond->setLeftChild($3);
+        $$->setLeftChild(cond);
+
+        //                  Create the "do" node. 
+        // - this will be the right sib of cond
+        // - and it will be run assuming the condition is true
+        // - the only child of then is its associated stmt
+        Node* do_node = new Node("do");
+        do_node->setLeftChild($5);
+
+
+        //                  create the jmp-to-loop node
+        // - after executing the "do" stmt
+        Node* jmp2loop = new Node("jmp-to-loop");
+        jmp2loop->setJumpTo(cond->getLabel());
+        jmp2loop->setJumpAlways();
+
+
+        //                  Connect our while-scope
+        cond->setRightSib(do_node);
+        do_node->setRightSib(jmp2loop);
+        jmp2loop->setRightSib(endwhile);
+
+    }
+;
+
+returnStmt:         
+    RETURN SEMI {
+         $$ = new Node("RETURN"); 
+
+    }
+    | RETURN expression SEMI {
+        $$ = new Node("RETURN"); 
+        $$->setLeftChild($2);
+    }
+;
+
+expression:          
+    var ASSIGN expression {
+        $$ = new Node("ASSIGN");
+        $$->setLeftChild($1);
+        $$->setRightChild($3);
+        $1->setRightSib($3);
+    }
+    | simpleExpression {
+         $$ = $1; 
+    }
+;
+
+var:                 
+    ID {
+        $$ = new Node("ID");
+        $$->setID($1);
+    }
+    |ID LBRACKET expression RBRACKET {
+        $$ = new Node("varIndex");
+        Node* id = new Node("ID");
+        id->setID($1);
+        $$->setLeftChild(id);
+        id->setRightSib($3);
+        $$->setRightChild($3);
+    }
+;
+
+simpleExpression:   
+    additiveExpression relop additiveExpression {
+        $$ = $2;
+        $$->setLeftChild($1);
+        $$->setRightChild($3);
+        $1->setRightSib($3);
+    }
+    | additiveExpression {
+         $$ = $1; 
+    }
+;
+
+relop:               
+    LTE     { $$ = new Node("LTE"); }
+    | LT    { $$ = new Node("LT"); } 
+    | GT    { $$ = new Node("GT"); } 
+    | GTE   { $$ = new Node("GTE"); }
+    | EQ    { $$ = new Node("EQ"); } 
+    | NEQ   { $$ = new Node("NEQ"); }
+;
+
+additiveExpression: 
+    additiveExpression addop term {
+        $$ = $2;
+        $$->setLeftChild($1);
+        $$->setRightChild($3);
+        $1->setRightSib($3);
+    }
+    | term {
+         $$ = $1; 
+    }
+;
+
+addop:               
+    ADD {
+         $$ = new Node("ADD"); 
+
+    } 
+    | SUB {
+         $$ = new Node("SUB"); 
+
+    }
+;
+
+term:                
+    term mulop factor {
+        $$ = $2;
+        $$->setLeftChild($1);
+        $$->setRightChild($3);
+        $1->setRightSib($3);
+    }
+    | factor {
+         $$ = $1; 
+    }
+;
+
+mulop:               
+    MULT {
+         $$ = new Node("MULT"); 
+
+    } 
+    | DIV {
+         $$ = new Node("DIV"); 
+
+    } 
+;
+
+factor:              
+    LPAREN expression RPAREN {
+        $$ = $2;
+    }
+    | var {
+         $$ = $1; 
+    }
+    | call {
+         $$ = $1; 
+    }
+    | NUM {
+       $$ = new Node($1);
+      
+    } 
+;
+
+call:                
+    ID LPAREN args RPAREN {
+        $$ = new Node("call"); 
+
+        Node* id = new Node("ID");
+        id->setID($1);
+
+        $$->setLeftChild(id);
+        $$->setRightChild($3);
+        id->setRightSib($3);
+    }
+;
+
+args:                
+    argList {
+         $$ = $1; 
+    }
+    | %empty { $$ = 0; }
+;
+
+argList:            
+    argList COMMA expression {
+        $$ = new Node("argList"); 
+        $$->setLeftChild($1);
+        $$->setRightChild($3);
+        $1->setRightSib($3);
+    }
+    | expression {
+         $$ = $1; 
+    }
+;
+
+%%
+
+int yyerror(const char *p) { 
+    std::cerr << "Parse error: \e[1m" << p << "\e[0m"; 
+    std::cerr << " in line: " << yylloc.first_line;
+    std::cerr << " column: " << yylloc.last_column;
+    std::cerr << ". Aborting compilation." << std::endl;
+    exit(-1); 
+}
