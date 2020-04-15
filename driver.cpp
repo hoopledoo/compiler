@@ -38,8 +38,10 @@ int main(int argc, char** argv){
 	std:: cout << "\nAST:" << std::endl;
 	root->walkTreePrint();
 
-	root->walkTreeGenerateIR(argv[1]);
+	IRGen* generator = new IRGen(argv[1]);
+	generator->generateIR(root);
 
+	delete generator;
 	delete root;
 
 	return 0;
