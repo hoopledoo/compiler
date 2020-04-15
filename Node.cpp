@@ -170,7 +170,7 @@ void printSymbol(symbol s, int scope){
 		std::cout << "    ";
 	}
 	std::cout << s.description << " " << s.type << " " << s.name;
-    if (s.len) std::cout << "[" << s.len << "]";
+    if (s.len>0) std::cout << "[" << s.len << "]";
     std::cout << std::endl;
 }
 
@@ -198,7 +198,72 @@ int addSymbol(symbol s, int scope){
      }
 }
 
-int checkDeclared(std::string id, int scope, bool is_array){
+int countParams(Node* params){
+	int num_params = 0;
+	if(params){
+		Node* param = params->getLeftChild();
+		while(param){
+			num_params++;
+			param = param->getRightSib();
+		}
+	}
+	return num_params;
+}
+
+int countArgs(Node* args){
+	int num_args = 0;
+	if(args){
+		Node* arg = args->getLeftChild();
+		while(arg){
+			num_args++;
+			arg = arg->getRightSib();
+		}
+	}
+	return num_args;
+}
+
+int checkDeclaredFunc(std::string id, int scope, Node* args){
+	int scope_found = 0;
+	bool declared = false;
+	// Count number of arguments
+	int num_args = countArgs(args);
+
+	/* Special case check for functions:
+
+		int input(void){}
+		void output(int val){}
+		
+		which are both defined as a part of the C- language.
+	*/
+	if(id=="input" and num_args == 0){
+		return 1;
+	}else if (id=="output" and num_args == 1){
+		return 1;
+	}
+	
+	// Starting with the most local scope working outwards
+	// see if the id has been declared yet
+	for(int i=scope; i>=0; i--){
+		if(not symbolTable[i].empty() and symbolTable[i].count(id)){
+			scope_found = i;
+			declared = true;
+			break;
+		}
+	}
+
+	if (not declared){
+		std::cerr << "!~~ Semantic error: \n\tfunction \e[1m";
+    	std::cerr << id << "\e[0m";
+    	std::cerr << " not declared in scope " << std::endl;
+    	std::cerr << "*********************!" << std::endl;
+		return 0;
+	}
+
+	return 1;
+
+}
+
+int checkDeclaredVar(std::string id, int scope, bool is_array){
 	bool declared = false;
 	int scope_found;
 
@@ -303,22 +368,46 @@ int Node::walkTreeCheckSymbols(int scope){
 			/* HANDLE DIFFERENT TYPES OF DECLARATIONS */
 
 			if (attributes["name"] == "funcDec"){
-        	 	symbol s;
-        	 	s.type = left_child->getName();  
-        		s.name = left_child->getRightSib()->getID();  
-        		s.len = 0;  
-        		s.description = "func";
-        		s.is_array = false;
-        		if(not addSymbol(s, scope)) success = false;
+				int num_params = countParams(left_child->getRightSib()->getRightSib());
+				std::string type = left_child->getName();
+				std::string id = left_child->getRightSib()->getID();
+				
+				// Disallow redefining the C- `input()` method
+				if(id=="input" and num_params == 0 and type == "INT"){
+					std::cerr << "!~~ Semantic error: \n\t\e[1m";
+			    	std::cerr <<"int input(void) \e[0m";
+			    	std::cerr << " is language defined " << std::endl;
+			    	std::cerr << "*********************!" << std::endl;
+					success = false;
+				}
+				// Disallow redefining the C- `output()` method
+				else if(id=="output" and num_params == 1 and type == "VOID"){
+					std::cerr << "!~~ Semantic error: \n\t\e[1m";
+			    	std::cerr <<"void input(int) \e[0m";
+			    	std::cerr << " is language defined " << std::endl;
+			    	std::cerr << "*********************!" << std::endl;
+					success = false;
+				}
+				else{	
+	        	 	symbol s;
+	        	 	s.type = type;  
+	        		s.name = id;  
+	        		s.len = -1;  
+	        		s.description = "func";
+	        		s.is_array = false;
+	        		s.num_params = num_params;
+	        		if(not addSymbol(s, scope)) success = false;
+				}
 			}
 			else if (attributes["name"] == "varDec"){
         	 	symbol s;
         	 	s.type = left_child->getName();  
         		s.name = left_child->getRightSib()->getID();  
-        		s.len = 0;  
+        		s.len = -1;  
         		s.description = "var";
         		s.is_array = false;
         		s.assigned = false;
+        		s.num_params = -1;
         		if(not addSymbol(s, scope)) success = false;
 			}
 			else if (attributes["name"] == "arrayVarDec"){
@@ -329,26 +418,29 @@ int Node::walkTreeCheckSymbols(int scope){
         		s.description = "arrayVar";
         		s.is_array = true;
         		s.assigned = false;
+        		s.num_params = -1;
         		if(not addSymbol(s, scope)) success = false;
 			}
 			else if (attributes["name"] == "param" ){
         	 	symbol s;
         	 	s.type = left_child->getName();  
         		s.name = left_child->right_sib->getID();  
-        		s.len = 0;  
+        		s.len = -1;  
         		s.description = "param";
         		s.is_array = false;
         		s.assigned = true;
+        		s.num_params = -1;
         		if(not addSymbol(s, scope+1)) success = false;
 			}
 			else if (attributes["name"] == "arrayParam" ){
         	 	symbol s;
         	 	s.type = left_child->getName();  
         		s.name = left_child->right_sib->getID();  
-        		s.len = 0;  
+        		s.len = -1;  
         		s.description = "paramPtr";
         		s.is_array = true;
         		s.assigned = true;
+        		s.num_params = -1;
         		if(not addSymbol(s, scope+1)) success = false;
 			}			
 			else if (attributes["name"] == "compoundStmt" ){
@@ -360,16 +452,16 @@ int Node::walkTreeCheckSymbols(int scope){
 
 			else if (attributes["name"] == "ASSIGN" ){
 				if(left_child->getName() == "varIndex"){
-					if(not checkDeclared(left_child->left_child->getID(), scope, true)) success = false;
+					if(not checkDeclaredVar(left_child->left_child->getID(), scope, true)) success = false;
 				}
 				else{
-					if(not checkDeclared(left_child->getID(), scope, false)) success = false;
+					if(not checkDeclaredVar(left_child->getID(), scope, false)) success = false;
 				}
 			}	
 
 			/* HANDLE FUNCTION CALL */
 			else if (attributes["name"] == "call" ){
-				if(not checkDeclared(left_child->getID(), scope, false)) success = false;
+				if(not checkDeclaredFunc(left_child->getID(), scope, right_child)) success = false;
 			}	
 
 			/* HANDLE REFERENCES */

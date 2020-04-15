@@ -17,6 +17,7 @@ typedef struct symbol {
     std::string 	description;
     std::string 	type;
     int         	len; /* used for array variables */
+    int 			num_params; /* used for functions */
     bool			assigned;
     bool			is_array;
 } symbol;
