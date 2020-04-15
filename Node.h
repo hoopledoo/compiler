@@ -61,7 +61,7 @@ public:
 	int walkTreeCheckSymbols(int scope=0);
 
 	// For Generating IR
-	void walkTreeGenerateIR();
+	void walkTreeGenerateIR(std::string s="default_name");
 	void codegen();
 
 private:

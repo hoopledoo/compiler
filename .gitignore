@@ -1,0 +1,2 @@
+# Ignore intermediate .o files
+*.o

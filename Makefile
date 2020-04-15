@@ -9,6 +9,10 @@ default:
 				-lpthread \
 				-o compiler
 
+io:
+	clang -O3 -c -emit-llvm -S input.c -o input.ll
+	clang -O3 -c -emit-llvm -S output.c -o output.ll
+
 clean: 
 	rm -f parser.tab.*
 	rm -f scanner.c	
