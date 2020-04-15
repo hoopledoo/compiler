@@ -2,6 +2,14 @@ int a;
 int b;
 int array[20];
 
+int input(void){
+	return a;
+}
+
+void output(int a){
+	
+}
+
 int function(int ar[], int a, int b){
 	int ar[30];
 	int a;

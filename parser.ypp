@@ -171,8 +171,13 @@ funDeclaration:
         id->setID($2);
 
         ($$->getLeftChild())->setRightSib(id);
-        id->setRightSib($4);
-        $4->setRightSib($6);
+        if($4){
+            id->setRightSib($4);
+            $4->setRightSib($6);
+        }
+        else{
+            id->setRightSib($6);
+        }
         $$->setRightChild($6);
     }
 ;
@@ -182,7 +187,7 @@ params:
          $$ = $1; 
     }
     |VOID {
-        $$ = new Node("VOID");
+        $$ = 0;
     }
 ;
 

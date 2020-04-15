@@ -198,26 +198,20 @@ int addSymbol(symbol s, int scope){
      }
 }
 
-int countParams(Node* params){
+int countParams(Node* param){
 	int num_params = 0;
-	if(params){
-		Node* param = params->getLeftChild();
-		while(param){
-			num_params++;
-			param = param->getRightSib();
-		}
+	while(param){
+		num_params++;
+		param = param->getRightSib();
 	}
 	return num_params;
 }
 
-int countArgs(Node* args){
+int countArgs(Node* arg){
 	int num_args = 0;
-	if(args){
-		Node* arg = args->getLeftChild();
-		while(arg){
-			num_args++;
-			arg = arg->getRightSib();
-		}
+	while(arg){
+		num_args++;
+		arg = arg->getRightSib();
 	}
 	return num_args;
 }
@@ -368,7 +362,11 @@ int Node::walkTreeCheckSymbols(int scope){
 			/* HANDLE DIFFERENT TYPES OF DECLARATIONS */
 
 			if (attributes["name"] == "funcDec"){
-				int num_params = countParams(left_child->getRightSib()->getRightSib());
+				Node* params = left_child->getRightSib()->getRightSib();
+				int num_params = 0;
+				if(params and params->getName()=="param"){
+					num_params = countParams(left_child->getRightSib()->getRightSib());
+				}
 				std::string type = left_child->getName();
 				std::string id = left_child->getRightSib()->getID();
 				
@@ -383,7 +381,7 @@ int Node::walkTreeCheckSymbols(int scope){
 				// Disallow redefining the C- `output()` method
 				else if(id=="output" and num_params == 1 and type == "VOID"){
 					std::cerr << "!~~ Semantic error: \n\t\e[1m";
-			    	std::cerr <<"void input(int) \e[0m";
+			    	std::cerr <<"void output(int) \e[0m";
 			    	std::cerr << " is language defined " << std::endl;
 			    	std::cerr << "*********************!" << std::endl;
 					success = false;
