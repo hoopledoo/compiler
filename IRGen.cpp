@@ -11,6 +11,8 @@ static llvm::LLVMContext TheContext;
 static llvm::IRBuilder<> Builder(TheContext);
 static std::unique_ptr<llvm::Module> TheModule;
 static std::string IR_string;
+static std::map<std::string, TYPE> vars; // we'll use this to keep track of 
+										 // the known variables during generation
 
 IRGen::IRGen(std::string s){
 	TheModule = llvm::make_unique<llvm::Module> (s + "_module", TheContext);
@@ -29,56 +31,127 @@ void setIRString(){
 void IRGen::generateIR(Node* root){
 	llvm::Module* module = TheModule.get();
 
-	setIRString();
+	codegen(root);
 
+	setIRString();
 	std::cout << IR_string << std::endl;
 
-	/*
-	TODO: remove this stuff, copied from spreadsheet project
-	unique_ptr<llvm::Module> module = create_uniq<llvm::Module>());
-
-	// Get the namedValues hash table from the cell
-	map<string, llvm::Value *> namedValues = cell->getNamedValues();
-
-	// Construct the expression string which is what we'll use to name the function
-	string name = cell->getID() + "_exp";
-
-	// From the Function Prototype Section of Kaleidoscope Demo
-  	vector<llvm::Type*> argList(cell->controllersMap.size(), llvm::Type::getInt32Ty(TheContext));
-	llvm::FunctionType *FT = llvm::FunctionType::get(llvm::Type::getInt32Ty(TheContext), argList, false);
-	llvm::Function *F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, name, module);
-
-	// Set name for all arguments, obtain an iterator for the cell controllersMap
-	map<string, SS_Cell*>::iterator mapPair = cell->controllersMap.begin();
-	for (auto& Arg: F->args()){
-		Arg.setName(mapPair->first);
-		++mapPair;
-	}
-
-	// Create a new basic block to start insertion into.
-	llvm::BasicBlock *BB = llvm::BasicBlock::Create(TheContext, "entry", F);
-	Builder.SetInsertPoint(BB);
-
-	// Record the function arguments in the namedValues map.
-	namedValues.clear();
-
-	for (auto &Arg : F->args()) {
-		namedValues[Arg.getName()] = &Arg;
-	}
-
-	llvm::Value * val = walkTreeGenerateIR(namedValues);
-	if (val) {
-  		// Finish off the function.
-  		Builder.CreateRet(val);
-
-  		// Validate the generated code, checking for consistency.
-  		llvm::verifyFunction(*F);
-
-  		cell->setIR();
-  		cell->setDataLayout();
-  		//cell->runCode();
-  	}
-	*/
-
 	return;
+}
+
+// Recursive method to generate code for each node
+// This behavior will be defined based on the type
+// of node we are dealing with
+llvm::Value* IRGen::codegen(Node*n){
+	llvm::Value* L = 0;
+
+	// Handle the different named nodes
+	if(not n->attributes.empty() and n->attributes.count("name")){	
+				/*		handle add operator						*/
+
+		if(n->attributes["name"] == "ADD") {
+			std::cout << "generating '+'" << std::endl;
+		}	
+				/*		handle subtraction operator				*/
+
+		else if(n->attributes["name"] == "SUB") {
+			std::cout << "generating '-'" << std::endl;
+		}	
+				/*		handle multiply operator				*/
+
+		else if(n->attributes["name"] == "MULT") {
+			std::cout << "generating '*'" << std::endl;
+		}
+				/*		handle division operator				*/
+
+		else if(n->attributes["name"] == "DIV") {
+			std::cout << "generating '/'" << std::endl;
+		}
+				/*		handle equality operator				*/
+
+		else if(n->attributes["name"] == "EQ") {
+			std::cout << "generating '=='" << std::endl;
+		}
+				/*		handle inequality operator				*/
+
+		else if(n->attributes["name"] == "NEQ") {
+			std::cout << "generating '!='" << std::endl;
+		}
+				/*		handle less than operator				*/
+
+		else if(n->attributes["name"] == "LT") {
+			std::cout << "generating '<'" << std::endl;
+		}
+				/*		handle less than or equal operator		*/
+
+		else if(n->attributes["name"] == "LTE") {
+			std::cout << "generating '<='" << std::endl;
+		}
+				/*		handle greater than operator			*/
+
+		else if(n->attributes["name"] == "GT") {
+			std::cout << "generating '>'" << std::endl;
+		}
+				/*		handle greater than or equal operator	*/
+
+		else if(n->attributes["name"] == "GTE") {
+			std::cout << "generating '>='" << std::endl;
+		}
+				/*		handle if statement 					*/
+
+		else if(n->attributes["name"] == "if-scope") {
+			std::cout << "generating if stmt" << std::endl;
+		}
+				/*		handle function call					*/
+
+		else if(n->attributes["name"] == "call") {
+			std::cout << "generating call" << std::endl;
+		}
+				/*		handle return 							*/
+
+		else if(n->attributes["name"] == "RETURN") {
+			std::cout << "generating return" << std::endl;
+		}
+				/*		handle variable declaration				*/
+
+		else if(n->attributes["name"] == "varDec") {
+			std::cout << "generating variable declaration" << std::endl;
+		}		
+				/*		handle array variable declaration		*/
+
+		else if(n->attributes["name"] == "arrayVarDec") {
+			std::cout << "generating array declaration" << std::endl;
+		}	
+				/*		handle function  declaration			*/
+
+		else if(n->attributes["name"] == "funcDec") {
+			std::cout << "generating function declaration" << std::endl;
+		}	
+				/*		handle assignment operator				*/
+
+		else if(n->attributes["name"] == "ASSIGN") {
+			std::cout << "generating '='" << std::endl;
+		}
+				/*		handle while loop 						*/
+
+		else if(n->attributes["name"] == "while-scope") {
+			std::cout << "generating '='" << std::endl;
+		}
+
+	}
+	else if (n->raw_val) {
+		std::cout << "handling constant value: " << n->val << std::endl;
+	}
+
+	Node* looper = 0;
+	if(n and n->left_child){ 
+		looper = n->left_child; 
+		while(looper){
+			codegen(looper);
+			looper = looper->getRightSib();
+		}
+	}
+
+	return L;
+
 }

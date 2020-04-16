@@ -38,6 +38,7 @@ int main(int argc, char** argv){
 	std:: cout << "\nAST:" << std::endl;
 	root->walkTreePrint();
 
+	std::cout << "\nGenerating IR..." << std::endl;
 	IRGen* generator = new IRGen(argv[1]);
 	generator->generateIR(root);
 

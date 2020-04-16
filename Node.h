@@ -57,13 +57,15 @@ public:
 	bool getJumpAlways();
 
 	void walkTreePrint(int depth=0);
+	void printNode();
 
 	// For Semantic Analysis
 	int walkTreeCheckSymbols(int scope=0);
 
 	// For Generating IR
 	void walkTreeGenerateIR(std::string s="default_name");
-	void codegen();
+
+	friend class IRGen;
 
 private:
 

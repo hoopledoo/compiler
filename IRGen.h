@@ -12,6 +12,8 @@
 #include "Node.h"
 #include "llvm-include.h"
 
+enum TYPE{INT_TYPE, VOID_TYPE, INTARRAY_TYPE};
+
 extern std::map<int, std::map<std::string, symbol>> symbolTable;
 
 class IRGen {
@@ -20,6 +22,7 @@ public:
 	virtual ~IRGen(){};
 
 	void generateIR(Node* n);
+	llvm::Value* codegen(Node* n);
 };
 
 #endif //IR_GEN_

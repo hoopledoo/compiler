@@ -125,11 +125,7 @@ void Node::setRightSib(Node* n){
 	right_sib = n;
 }
 
-void Node::walkTreePrint(int depth){
-	for(int i=0; i<depth; i++){
-		std::cout << "  ";	
-	}
-
+void Node::printNode(){
 	if(not attributes.empty()){
 		if (attributes.count("name")) std::cout << attributes["name"];
 		if (attributes.count("id")) std::cout << ": " << attributes["id"];
@@ -145,6 +141,14 @@ void Node::walkTreePrint(int depth){
 		std::cout << std::endl;	
 	}
 	else if (raw_val) std::cout << this->val << std::endl;
+}
+
+void Node::walkTreePrint(int depth){
+	for(int i=0; i<depth; i++){
+		std::cout << "  ";	
+	}
+
+	printNode();
 
 	// Print sub-tree (recursively)
 	int children_depth = depth + 1;
@@ -498,9 +502,3 @@ int Node::walkTreeCheckSymbols(int scope){
 	return success;
 }
 
-// Recursive method to generate code for each node
-// This behavior will be defined based on the type
-// of node we are dealing with
-void Node::codegen(){
-
-}
