@@ -415,6 +415,36 @@ void* IRGen::codegen(Node*n, int scope){
 				 ****************************************************/
 		else if(n->attributes["name"] == "while-scope") {
 			std::cout << "generating 'while loop'  (TODO)" << std::endl;
+
+			// First, figure out if we're dealing with if then else or just if then
+			Node* condition = n->left_child;
+			llvm::Value* CondV = (llvm::Value *)codegen(condition, scope);
+			Node* do_node = condition->right_sib;
+
+			llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
+			llvm::BasicBlock* PreLoopBB = Builder.GetInsertBlock();
+			llvm::BasicBlock* CondBB = llvm::BasicBlock::Create(TheContext, "while-cond", CurrFunction);
+			llvm::BasicBlock* LoopBB = llvm::BasicBlock::Create(TheContext, "while-loop");
+			llvm::BasicBlock* PostLoopBB = llvm::BasicBlock::Create(TheContext, "end-while");
+
+			// Create an unconditional branch to the loop condition
+			Builder.CreateBr(CondBB); 
+
+			// Insert the loop condition
+			Builder.SetInsertPoint(CondBB);
+			llvm::Value* Condition = (llvm::Value *)codegen(condition, scope);
+			Builder.CreateCondBr(Condition, LoopBB, PostLoopBB);
+
+			// Insert the loop body
+			Builder.SetInsertPoint(LoopBB);
+			llvm::Value* LoopBody = (llvm::Value *)codegen(do_node, scope);
+			Builder.CreateBr(CondBB);
+
+			// Add the new loop BB to our Function
+			CurrFunction->getBasicBlockList().push_back(LoopBB);
+			CurrFunction->getBasicBlockList().push_back(PostLoopBB);			
+			Builder.SetInsertPoint(PostLoopBB);
+
 		}
 				/****************************************************
 				 *			handle if statement						*
@@ -472,8 +502,6 @@ void* IRGen::codegen(Node*n, int scope){
 				ElseBB = Builder.GetInsertBlock();
 			}
 
-
-			std::cout << "Inserting PHI node" << std::endl;
 			CurrFunction->getBasicBlockList().push_back(MergeBB);
 			Builder.SetInsertPoint(MergeBB);
 		}
@@ -512,7 +540,8 @@ void* IRGen::codegen(Node*n, int scope){
 				****************************************************/
 		else if(n->attributes["name"] == "cond" or \
 				n->attributes["name"] == "then" or \
-				n->attributes["name"] == "else"){
+				n->attributes["name"] == "else" or \
+				n->attributes["name"] == "do"){
 			if(n->left_child) return codegen(n->left_child, scope);
 		}
 

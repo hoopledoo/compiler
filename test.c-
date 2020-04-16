@@ -1,4 +1,9 @@
 int same(int a){
+
+	while(a < 100){
+		a = a + 5;
+	}
+
 	if(a==0) output(a); 
 	else output(0);
 
