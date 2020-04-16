@@ -1,5 +1,7 @@
 int same(int a){
-	output(a); 
+	if(a==0) output(a); 
+	else output(0);
+	
 	return a;
 }
 

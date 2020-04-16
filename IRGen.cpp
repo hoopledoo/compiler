@@ -348,7 +348,7 @@ void* IRGen::codegen(Node*n, int scope){
 
 			llvm::Value* NextVar = 0;
 			NextVar = (llvm::Value*)codegen(n->right_child, scope);
-			
+
 			// Store the results back into the var
 			return Builder.CreateStore(NextVar, Alloca);
 		}
@@ -422,64 +422,60 @@ void* IRGen::codegen(Node*n, int scope){
 		else if(n->attributes["name"] == "if-scope") {
 			// First, figure out if we're dealing with if then else or just if then
 			Node* condition = n-> left_child;
+			llvm::Value* CondV = (llvm::Value *)codegen(condition, scope);
+
 			Node* then_node = condition->right_sib;
 			Node* else_node = then_node->right_sib->right_sib;
 			llvm::Function *CurrFunction = Builder.GetInsertBlock()->getParent();
 
-			// Handle the case where we have an else node
-			if(else_node){
-				std::cout << "generating if else stmt" << std::endl;
-				llvm::BasicBlock *ThenBB = llvm::BasicBlock::Create(TheContext, "then", CurrFunction);
-				llvm::BasicBlock *ElseBB = llvm::BasicBlock::Create(TheContext, "else");
-				llvm::BasicBlock *MergeBB = llvm::BasicBlock::Create(TheContext, "ifcont");	
+			std::cout << "generating if stmt" << std::endl;
+			llvm::BasicBlock *CurrBB = Builder.GetInsertBlock();
+			llvm::BasicBlock *ThenBB = llvm::BasicBlock::Create(TheContext, "then", CurrFunction);
+			llvm::BasicBlock *MergeBB = llvm::BasicBlock::Create(TheContext, "ifcont");	
+			llvm::BasicBlock *ElseBB = llvm::BasicBlock::Create(TheContext, "else");
 
-				llvm::Value* CondV = (llvm::Value *)codegen(condition, scope);
 
-				std::cout << "Adding branch instruction " << std::endl;
-				Builder.CreateCondBr(CondV, ThenBB, ElseBB);
+			llvm::Value* ThenV;
+			llvm::Value* ElseV;
 
-				std::cout << "Generating Then block " << std::endl;
-				Builder.SetInsertPoint(ThenBB);
-				llvm::Value *ThenV = (llvm::Value *)codegen(then_node, scope);
+			std::cout << "Adding branch instruction " << std::endl;
+			Builder.CreateCondBr(CondV, ThenBB, ElseBB);
+
+			std::cout << "Generating Then block " << std::endl;
+			Builder.SetInsertPoint(ThenBB);
+			ThenV = (llvm::Value *)codegen(then_node, scope);
+			if(! ThenV) {
 				std::cout << "Writing Then block " << std::endl;
 				printValue(ThenV);
 				std::cout << std::endl;
-				if(! ThenV) {
-					return nullptr;
-				}
+				return nullptr;
+			}
 
-				Builder.CreateBr(MergeBB);
-				ThenBB = Builder.GetInsertBlock();
+			Builder.CreateBr(MergeBB);
+			ThenBB = Builder.GetInsertBlock();
 
+			if(else_node){
+				std::cout << "handling else stmt" << std::endl;
 				CurrFunction->getBasicBlockList().push_back(ElseBB);
 				Builder.SetInsertPoint(ElseBB);
 
 				std::cout << "Generating Else block " << std::endl;
-				llvm::Value *ElseV = (llvm::Value *)codegen(else_node,scope);
-				std::cout << "Writing Else block " << std::endl;
-				printValue(ElseV);
-				std::cout << std::endl;
+				ElseV = (llvm::Value *)codegen(else_node,scope);
 				if(! ElseV){
+					std::cout << "Writing Else block " << std::endl;
+					printValue(ElseV);
+					std::cout << std::endl;
 					return nullptr;
 				}
 
 				Builder.CreateBr(MergeBB);
 				ElseBB = Builder.GetInsertBlock();
-
-				CurrFunction->getBasicBlockList().push_back(MergeBB);
-				Builder.SetInsertPoint(MergeBB);
-				llvm::PHINode* PN = Builder.CreatePHI(llvm::Type::getInt32Ty(TheContext), 2, "iftmp");
-
-				PN->addIncoming(ThenV, ThenBB);
-				PN->addIncoming(ElseV, ElseBB);
-				return PN;
-			}
-			// Handle the basic if block
-			else{
-				std::cout << "generating if then stmt" << std::endl;
-
 			}
 
+
+			std::cout << "Inserting PHI node" << std::endl;
+			CurrFunction->getBasicBlockList().push_back(MergeBB);
+			Builder.SetInsertPoint(MergeBB);
 		}
 				/****************************************************
 				 *		handle scope change on compound stmt 		*
@@ -500,14 +496,16 @@ void* IRGen::codegen(Node*n, int scope){
 				 ****************************************************/
 		else if(n->attributes["name"] == "localDeclarations" or \
 				n->attributes["name"] == "declarationList" or \
-				n->attributes["name"] == "stmtList" or \
-				n->attributes["name"] == "argList"){
+				n->attributes["name"] == "stmtList"){
 
 			Node* looper = n->left_child;
 			while(looper){
 				L = (llvm::Value*)codegen(looper, scope);
 				looper = looper->right_sib;
 			}
+			std::cout << "done with LIST, returning ";
+			printValue(L);
+			return L;
 		}
 				/****************************************************
 				*			handle nodes that recurse 				*
