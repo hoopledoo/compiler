@@ -1,7 +1,7 @@
 int same(int a){
 	if(a==0) output(a); 
 	else output(0);
-	
+
 	return a;
 }
 
@@ -16,6 +16,7 @@ void f(int a, int b, int c[]){
 void functionTwo(int a, int d[]){
 	int b;
 	b = a;
+	if(b == a) b = 3;
 	a = d[1];
 	return;
 }

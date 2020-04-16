@@ -251,6 +251,9 @@ void* IRGen::codegen(Node*n, int scope){
 
 			llvm::Function *F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, id, TheModule.get());
 
+			std::cout << "Adding function " << id << " to funcs map" << std::endl;
+			funcs[id] = F;
+
 			// Create a new basic block to start insertion into.
 			llvm::BasicBlock *BB = llvm::BasicBlock::Create(TheContext, "entry", F);
 			Builder.SetInsertPoint(BB);
@@ -276,9 +279,6 @@ void* IRGen::codegen(Node*n, int scope){
   				// Validate the generated code, checking for consistency.
   				llvm::verifyFunction(*F);
 			}
-
-			std::cout << "Adding function " << id << " to funcs map" << std::endl;
-			funcs[id] = F;
 
 			return funcVal;
 		}	
