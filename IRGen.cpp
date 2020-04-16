@@ -347,15 +347,8 @@ void* IRGen::codegen(Node*n, int scope){
 			storing = false;
 
 			llvm::Value* NextVar = 0;
-			// Recursively evaluate what the right-hand side of the equals sign should be
-			if(not n->right_child->attributes.empty() and n->right_child->getName()=="ID"){
-				llvm::AllocaInst* tmp_a = (llvm::AllocaInst*)codegen(n->right_child, scope);
-				NextVar = Builder.CreateLoad(tmp_a);
-			}
-			else{
-				NextVar = (llvm::Value*)codegen(n->right_child, scope);
-			}
-
+			NextVar = (llvm::Value*)codegen(n->right_child, scope);
+			
 			// Store the results back into the var
 			return Builder.CreateStore(NextVar, Alloca);
 		}
@@ -394,18 +387,7 @@ void* IRGen::codegen(Node*n, int scope){
 			}
 
 			while(arg){
-				llvm::Value* result;
-
-				// Handle IDs
-				if(not arg->attributes.empty() and arg->attributes["name"] == "ID"){
-					llvm::AllocaInst* ptr = (llvm::AllocaInst*)codegen(arg, scope);
-					result = Builder.CreateLoad(ptr);
-				}
-				// Handle Constants
-				else{
-					result = llvm::ConstantInt::get(TheContext, llvm::APInt(32, arg->val, true));
-				}
-				
+				llvm::Value* result = (llvm::Value* )codegen(arg,scope);
 				printValue(result);
 				std::cout << std::endl;
 				passingArgs.push_back(result);
@@ -420,19 +402,8 @@ void* IRGen::codegen(Node*n, int scope){
 		else if(n->attributes["name"] == "RETURN") {
 			// Handle returns with a return value
 			if(n->left_child){
-				llvm::AllocaInst* ptr = 0;
-				std::string id = n->left_child->getID();
-				std::cout << "generating return " << id << std::endl;
-				for(int i=scope; i>=0; i--){
-					std::cout << "Checking scope " << i << " for variable " << id << std::endl;
-					if (vars[i].count(id)) {
-						std::cout << "ptr found in scope " << i << std::endl;
-						ptr = vars[i][id];
-						break;
-					}
-				}
-				llvm::Value* retVal = Builder.CreateLoad(ptr);
-				return Builder.CreateRet(retVal);
+				std::cout << "generating return" << std::endl;
+				return Builder.CreateRet((llvm::Value*)codegen(n->left_child, scope));
 			}
 			else{
 				std::cout << "generating return void" << std::endl;
@@ -462,10 +433,17 @@ void* IRGen::codegen(Node*n, int scope){
 				llvm::BasicBlock *ElseBB = llvm::BasicBlock::Create(TheContext, "else");
 				llvm::BasicBlock *MergeBB = llvm::BasicBlock::Create(TheContext, "ifcont");	
 
-				Builder.CreateCondBr((llvm::Value *)codegen(condition, scope), ThenBB, ElseBB);
-				Builder.SetInsertPoint(ThenBB);
+				llvm::Value* CondV = (llvm::Value *)codegen(condition, scope);
 
+				std::cout << "Adding branch instruction " << std::endl;
+				Builder.CreateCondBr(CondV, ThenBB, ElseBB);
+
+				std::cout << "Generating Then block " << std::endl;
+				Builder.SetInsertPoint(ThenBB);
 				llvm::Value *ThenV = (llvm::Value *)codegen(then_node, scope);
+				std::cout << "Writing Then block " << std::endl;
+				printValue(ThenV);
+				std::cout << std::endl;
 				if(! ThenV) {
 					return nullptr;
 				}
@@ -476,7 +454,11 @@ void* IRGen::codegen(Node*n, int scope){
 				CurrFunction->getBasicBlockList().push_back(ElseBB);
 				Builder.SetInsertPoint(ElseBB);
 
+				std::cout << "Generating Else block " << std::endl;
 				llvm::Value *ElseV = (llvm::Value *)codegen(else_node,scope);
+				std::cout << "Writing Else block " << std::endl;
+				printValue(ElseV);
+				std::cout << std::endl;
 				if(! ElseV){
 					return nullptr;
 				}
@@ -523,14 +505,16 @@ void* IRGen::codegen(Node*n, int scope){
 
 			Node* looper = n->left_child;
 			while(looper){
-				codegen(looper, scope);
+				L = (llvm::Value*)codegen(looper, scope);
 				looper = looper->right_sib;
 			}
 		}
 				/****************************************************
 				*			handle nodes that recurse 				*
 				****************************************************/
-		else if(n->attributes["name"] == "cond"){
+		else if(n->attributes["name"] == "cond" or \
+				n->attributes["name"] == "then" or \
+				n->attributes["name"] == "else"){
 			if(n->left_child) return codegen(n->left_child, scope);
 		}
 

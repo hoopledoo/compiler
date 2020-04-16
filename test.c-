@@ -1,5 +1,5 @@
 int same(int a){
-	output(a);
+	output(a); 
 	return a;
 }
 
