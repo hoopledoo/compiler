@@ -19,6 +19,7 @@ public:
 
 	void generateIR(Node* n);
 	void* codegen(Node* n, int scope=0);
+	std::string getIRString();
 };
 
 #endif //IR_GEN_

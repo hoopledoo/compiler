@@ -42,8 +42,19 @@ int main(int argc, char** argv){
 	IRGen* generator = new IRGen(argv[1]);
 	generator->generateIR(root);
 
+	std::ofstream outfile;
+	outfile.open(std::string(argv[1]) + ".ll", std::ios::out);
+	if (!outfile){
+		std::cout << "Failed to open output file" << std::string(argv[1]) + ".ll" << std::endl;
+	}
+	else{
+		outfile << generator->getIRString();
+		outfile.close();
+	}
+
 	delete generator;
 	delete root;
+	fclose(myfile);
 
 	return 0;
 }

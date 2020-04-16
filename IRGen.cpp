@@ -18,6 +18,7 @@ static std::string IR_string;
 // during the semantic analysis
 static std::map<int, std::map<std::string, llvm::AllocaInst *>> vars; 	
 static std::map<std::string, llvm::Function*> funcs;
+static bool storing = false;
 
 IRGen::IRGen(std::string s){
 	TheModule = llvm::make_unique<llvm::Module> (s + "_module", TheContext);
@@ -30,6 +31,10 @@ void setIRString(){
 	llvm::raw_string_ostream* ir_out = new llvm::raw_string_ostream(IR_string);
 	TheModule.get()->print(*ir_out, nullptr);
 	delete ir_out;
+}
+
+std::string IRGen::getIRString(){
+	return IR_string;
 }
 
 void printValue(llvm::Value* v){
@@ -124,7 +129,11 @@ void* IRGen::codegen(Node*n, int scope){
 			std::cout << "generating '=='" << std::endl;
 			L = (llvm::Value*)codegen(n->left_child, scope);
 			llvm::Value* R = (llvm::Value*)codegen(n->right_child, scope);
-			return Builder.CreateICmpEQ(L,R);
+			std::cout << std::endl;
+			llvm::Value* result = Builder.CreateICmpEQ(L,R);
+			printValue(result);
+			std::cout << std::endl;
+			return result;
 		}
 				/****************************************************
 				 *			handle inequality operator				*
@@ -186,6 +195,7 @@ void* IRGen::codegen(Node*n, int scope){
 				 *			handle array variable declaration 		*
 				 ****************************************************/
 		else if(n->attributes["name"] == "arrayVarDec") {
+			/* TODO: Fix this, at the moment we've got pointers to pointers... */
 			std::string id = n->left_child->right_sib->getID();
 			int size = n->right_child->val;
 			std::cout << "array declaration" << id << "[" << size << "] in scope "<< scope<< std::endl;
@@ -216,6 +226,7 @@ void* IRGen::codegen(Node*n, int scope){
 			// Loop through all params
 			while(param){
 				if(param->getName() == "arrayParam"){
+					/* TODO: Fix this, at the moment we've got pointers to pointers... */
 					argList.push_back(llvm::Type::getInt32PtrTy(TheContext));
 					argNames.push_back(param->right_child->getID());
 				}
@@ -272,12 +283,20 @@ void* IRGen::codegen(Node*n, int scope){
 			return funcVal;
 		}	
 		else if(n->attributes["name"] == "ID"){
+			llvm::AllocaInst* Alloca;
 			for(int i=scope; i>=0; i--){
 				std::cout << "Checking scope " << i << " for variable " << n->getID() << std::endl;
 				if (vars[i].count(n->getID())) {
 					std::cout << "Found " << n->getID() << " in scope " << i << std::endl;
-					return vars[i][n->getID()];
+					Alloca = vars[i][n->getID()];
+					break;
 				}
+			}
+			if(storing){
+				return Alloca;
+			}
+			else{
+				return Builder.CreateLoad(Alloca);
 			}
 			return 0;
 		}
@@ -291,6 +310,7 @@ void* IRGen::codegen(Node*n, int scope){
 			llvm::AllocaInst* Alloca = 0;
 			std::string id;
 			if(n->left_child->getName() == "ID"){
+				storing = true;
 				int scope_found = -1;
 				id = n->left_child->getID();
 
@@ -306,6 +326,9 @@ void* IRGen::codegen(Node*n, int scope){
 			}	
 			/* Handle assignment to an array location */
 			else if(n->left_child->getName() == "varIndex"){
+				storing = true;
+
+				/* TODO: Fix this, at the moment we've got pointers to pointers... */
 				llvm::AllocaInst* ptr = 0;
 				id = n->left_child->left_child->getID();
 				int indx = n->left_child->right_child->val;
@@ -320,8 +343,8 @@ void* IRGen::codegen(Node*n, int scope){
 					}
 				}
 				Alloca = (llvm::AllocaInst* )Builder.CreateConstGEP1_32(ptr, indx);
-
 			}
+			storing = false;
 
 			llvm::Value* NextVar = 0;
 			// Recursively evaluate what the right-hand side of the equals sign should be
@@ -340,6 +363,8 @@ void* IRGen::codegen(Node*n, int scope){
 				 *			handle var Index reference				*
 				 ****************************************************/
 		else if(n->attributes["name"] == "varIndex"){
+			/* TODO: Fix this, at the moment we've got pointers to pointers... */
+
 			llvm::AllocaInst* ptr = 0;
 			int indx = n->right_child->val;
 			std::string id = n->left_child->getID();
@@ -364,7 +389,7 @@ void* IRGen::codegen(Node*n, int scope){
 			std::cout << "generating call to " << id << "(...)" << std::endl;
 
 			Node* arg = n->right_child;
-			if(not arg->raw_val and arg->getName() == "argList"){
+			if(arg and not arg->raw_val and arg->getName() == "argList"){
 				arg = arg->left_child;
 			}
 
@@ -378,7 +403,7 @@ void* IRGen::codegen(Node*n, int scope){
 				}
 				// Handle Constants
 				else{
-					result = llvm::ConstantInt::get(TheContext, llvm::APInt(32, arg->val));
+					result = llvm::ConstantInt::get(TheContext, llvm::APInt(32, arg->val, true));
 				}
 				
 				printValue(result);
@@ -424,7 +449,55 @@ void* IRGen::codegen(Node*n, int scope){
 				 *			handle if statement						*
 				 ****************************************************/
 		else if(n->attributes["name"] == "if-scope") {
-			std::cout << "generating if stmt  (TODO)" << std::endl;
+			// First, figure out if we're dealing with if then else or just if then
+			Node* condition = n-> left_child;
+			Node* then_node = condition->right_sib;
+			Node* else_node = then_node->right_sib->right_sib;
+			llvm::Function *CurrFunction = Builder.GetInsertBlock()->getParent();
+
+			// Handle the case where we have an else node
+			if(else_node){
+				std::cout << "generating if else stmt" << std::endl;
+				llvm::BasicBlock *ThenBB = llvm::BasicBlock::Create(TheContext, "then", CurrFunction);
+				llvm::BasicBlock *ElseBB = llvm::BasicBlock::Create(TheContext, "else");
+				llvm::BasicBlock *MergeBB = llvm::BasicBlock::Create(TheContext, "ifcont");	
+
+				Builder.CreateCondBr((llvm::Value *)codegen(condition, scope), ThenBB, ElseBB);
+				Builder.SetInsertPoint(ThenBB);
+
+				llvm::Value *ThenV = (llvm::Value *)codegen(then_node, scope);
+				if(! ThenV) {
+					return nullptr;
+				}
+
+				Builder.CreateBr(MergeBB);
+				ThenBB = Builder.GetInsertBlock();
+
+				CurrFunction->getBasicBlockList().push_back(ElseBB);
+				Builder.SetInsertPoint(ElseBB);
+
+				llvm::Value *ElseV = (llvm::Value *)codegen(else_node,scope);
+				if(! ElseV){
+					return nullptr;
+				}
+
+				Builder.CreateBr(MergeBB);
+				ElseBB = Builder.GetInsertBlock();
+
+				CurrFunction->getBasicBlockList().push_back(MergeBB);
+				Builder.SetInsertPoint(MergeBB);
+				llvm::PHINode* PN = Builder.CreatePHI(llvm::Type::getInt32Ty(TheContext), 2, "iftmp");
+
+				PN->addIncoming(ThenV, ThenBB);
+				PN->addIncoming(ElseV, ElseBB);
+				return PN;
+			}
+			// Handle the basic if block
+			else{
+				std::cout << "generating if then stmt" << std::endl;
+
+			}
+
 		}
 				/****************************************************
 				 *		handle scope change on compound stmt 		*
@@ -454,6 +527,12 @@ void* IRGen::codegen(Node*n, int scope){
 				looper = looper->right_sib;
 			}
 		}
+				/****************************************************
+				*			handle nodes that recurse 				*
+				****************************************************/
+		else if(n->attributes["name"] == "cond"){
+			if(n->left_child) return codegen(n->left_child, scope);
+		}
 
 	}
 				/****************************************************
@@ -461,7 +540,7 @@ void* IRGen::codegen(Node*n, int scope){
 				 ****************************************************/	
 	else if (n and n->raw_val) {
 		std::cout << "handling constant value: " << n->val << std::endl;
-		return llvm::ConstantInt::get(TheContext, llvm::APInt(32, n->val));
+		return llvm::ConstantInt::get(TheContext, llvm::APInt(32, n->val, true));
 	}
 
 	return L;
