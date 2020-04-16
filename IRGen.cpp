@@ -185,14 +185,15 @@ void* IRGen::codegen(Node*n, int scope){
 				 ****************************************************/
 		else if(n->attributes["name"] == "varDec") {
 			std::string id = n->right_child->getID();
-			std::cout << "variable declaration: " << id << " in scope "<< scope<< std::endl;
 
-			llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
-			std::cout << "Successfully got currfunc" << std::endl;
-
-			llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32Ty(TheContext), nullptr);
-			std::cout << "Adding " << id << " to scope " << scope << std::endl;
-			vars[scope][id] = Alloca;
+			if(scope > 0){
+				llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
+				llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32Ty(TheContext), nullptr);
+				vars[scope][id] = Alloca;
+			}
+			else{
+				TheModule->getOrInsertGlobal(id, llvm::Type::getInt32Ty(TheContext));
+			}
 		}		
 				/****************************************************
 				 *			handle array variable declaration 		*
@@ -203,10 +204,15 @@ void* IRGen::codegen(Node*n, int scope){
 			int size = n->right_child->val;
 			// std::cout << "array declaration" << id << "[" << size << "] in scope "<< scope<< std::endl;
 
-			llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
-			llvm::Constant* array_size = llvm::ConstantInt::get(TheContext, llvm::APInt(32, size));
-			llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32Ty(TheContext), array_size);
-			vars[scope][id] = Alloca;
+			if(scope >0){
+				llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
+				llvm::Constant* array_size = llvm::ConstantInt::get(TheContext, llvm::APInt(32, size));
+				llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32Ty(TheContext), array_size);
+				vars[scope][id] = Alloca;
+			}
+			else{
+				TheModule->getOrInsertGlobal(id, llvm::ArrayType::get(llvm::Type::getInt32Ty(TheContext), size));
+			}
 		}	
 				/****************************************************
 				 *			handle function declaration				*
@@ -287,14 +293,20 @@ void* IRGen::codegen(Node*n, int scope){
 		}	
 		else if(n->attributes["name"] == "ID"){
 			llvm::AllocaInst* Alloca;
-			for(int i=scope; i>=0; i--){
+			int found_scope = 0;
+			for(int i=scope; i>0; i--){
 				// std::cout << "Checking scope " << i << " for variable " << n->getID() << std::endl;
 				if (vars[i].count(n->getID())) {
 					// std::cout << "Found " << n->getID() << " in scope " << i << std::endl;
-					Alloca = vars[i][n->getID()];
+					found_scope = i;
+					
 					break;
 				}
 			}
+
+			if(found_scope > 0) Alloca = vars[found_scope][n->getID()];
+			else 	return TheModule->getOrInsertGlobal(n->getID(), llvm::Type::getInt32Ty(TheContext));
+
 			if(storing){
 				return Alloca;
 			}
