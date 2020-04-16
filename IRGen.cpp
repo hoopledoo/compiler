@@ -17,6 +17,7 @@ static std::string IR_string;
 // we'll handle it essentially the same as the symbol table used
 // during the semantic analysis
 static std::map<int, std::map<std::string, llvm::AllocaInst *>> vars; 	
+static std::map<std::string, llvm::Function*> funcs;
 
 IRGen::IRGen(std::string s){
 	TheModule = llvm::make_unique<llvm::Module> (s + "_module", TheContext);
@@ -32,9 +33,11 @@ void setIRString(){
 }
 
 void printValue(llvm::Value* v){
-	llvm::raw_ostream* ir_out = new llvm::raw_os_ostream(std::cout);
-	v->print(*ir_out, false);
-	delete ir_out;
+	if(v){
+		llvm::raw_ostream* ir_out = new llvm::raw_os_ostream(std::cout);
+		v->print(*ir_out, false);
+		delete ir_out;
+	}
 }
 
 // Perform initial setup required to generate IR using llvm
@@ -61,9 +64,10 @@ void IRGen::generateIR(Node* root){
 
 static llvm::AllocaInst *CreateEntryBlockAlloca(llvm::Function *TheFunction, 
 											const std::string &VarName,
-											llvm::Type* t){
+											llvm::Type* t,
+											llvm::Value* size){
 	llvm::IRBuilder<> TmpB(&TheFunction->getEntryBlock(), TheFunction->getEntryBlock().begin());
-	return TmpB.CreateAlloca(t, 0, VarName.c_str());
+	return TmpB.CreateAlloca(t, size, VarName.c_str());
 }
 
 // Recursive method to generate code for each node
@@ -171,18 +175,22 @@ void* IRGen::codegen(Node*n, int scope){
 		else if(n->attributes["name"] == "varDec") {
 			std::string id = n->right_child->getID();
 			std::cout << "variable declaration: " << id << " in scope "<< scope<< std::endl;
+
 			llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
-			llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32Ty(TheContext));
+			llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32Ty(TheContext), nullptr);
 			vars[scope][id] = Alloca;
 		}		
 				/****************************************************
 				 *			handle array variable declaration 		*
 				 ****************************************************/
 		else if(n->attributes["name"] == "arrayVarDec") {
-			std::string id = n->right_child->getID();
-			std::cout << "array declaration" << id << " in scope "<< scope<< std::endl;
+			std::string id = n->left_child->right_sib->getID();
+			int size = n->right_child->val;
+			std::cout << "array declaration" << id << "[" << size << "] in scope "<< scope<< std::endl;
+
 			llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
-			llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32PtrTy(TheContext));
+			llvm::Constant* array_size = llvm::ConstantInt::get(TheContext, llvm::APInt(32, size));
+			llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32PtrTy(TheContext), array_size);
 			vars[scope][id] = Alloca;
 		}	
 				/****************************************************
@@ -195,7 +203,7 @@ void* IRGen::codegen(Node*n, int scope){
 
 			std::string rtype = n->left_child->getName();
 			std::string id = n->left_child->right_sib->getID();
-			std::cout << "function declaration for " << id << " in scope " << scope << std::endl;
+			std::cout << "\n\nfunction declaration for " << id << " in scope " << scope << std::endl;
 			int num_params = 0;
 			
 			Node* param = n->left_child->right_sib->right_sib;
@@ -242,7 +250,7 @@ void* IRGen::codegen(Node*n, int scope){
 			auto name = argNames.begin();
 			for(auto &Arg : F->args()){
 				std::cout << "function arg variable declaration: " << *name << " in scope "<< scope+1 << std::endl;
-				llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(F, *name, Arg.getType());
+				llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(F, *name, Arg.getType(), nullptr);
 				Builder.CreateStore(&Arg, Alloca);
 				vars[scope+1][*name] = Alloca;
 				name++;
@@ -256,12 +264,18 @@ void* IRGen::codegen(Node*n, int scope){
   				llvm::verifyFunction(*F);
 			}
 
+			std::cout << "Adding function " << id << " to funcs map" << std::endl;
+			funcs[id] = F;
+
 			return funcVal;
 		}	
 		else if(n->attributes["name"] == "ID"){
 			for(int i=scope; i>=0; i--){
 				std::cout << "Checking scope " << i << " for variable " << n->getID() << std::endl;
-				if (vars[i].count(n->getID())) return vars[i][n->getID()];
+				if (vars[i].count(n->getID())) {
+					std::cout << "Found " << n->getID() << " in scope " << i << std::endl;
+					return vars[i][n->getID()];
+				}
 			}
 			return 0;
 		}
@@ -300,27 +314,22 @@ void* IRGen::codegen(Node*n, int scope){
 					if (vars[i].count(id)) {
 						std::cout << "ptr found in scope " << i << std::endl;
 						ptr = vars[i][id];
+						break;
 					}
 				}
-				// TODO: remove -- return Builder.CreateGEP(llvm::Type::getInt32Ty(TheContext), ptr);
 				Alloca = (llvm::AllocaInst* )Builder.CreateConstGEP1_32(ptr, indx);
 
 			}
 
-			std::cout << "Obtained reference for left side" << std::endl;
-
 			llvm::Value* NextVar = 0;
 			// Recursively evaluate what the right-hand side of the equals sign should be
 			if(not n->right_child->attributes.empty() and n->right_child->getName()=="ID"){
-				std::cout << "handling straight up ID" << std::endl;
 				llvm::AllocaInst* tmp_a = (llvm::AllocaInst*)codegen(n->right_child, scope);
 				NextVar = Builder.CreateLoad(tmp_a);
 			}
 			else{
-				std::cout << "handling something else.. " << std::endl;
 				NextVar = (llvm::Value*)codegen(n->right_child, scope);
 			}
-			std::cout << "Obtained reference for right side." << std::endl;
 
 			// Store the results back into the var
 			return Builder.CreateStore(NextVar, Alloca);
@@ -338,10 +347,39 @@ void* IRGen::codegen(Node*n, int scope){
 				if (vars[i].count(id)) {
 					std::cout << "ptr found in scope " << i << std::endl;
 					ptr = vars[i][id];
+					break;
 				}
 			}
-			// TODO: remove -- return Builder.CreateGEP(llvm::Type::getInt32Ty(TheContext), ptr);
 			return Builder.CreateConstGEP1_32(ptr, indx);
+		}
+				/****************************************************
+				 *			handle function call 					*
+				 ****************************************************/
+		else if(n->attributes["name"] == "call") {
+			std::vector<llvm::Value *> passingArgs;
+			std::string id = n->left_child->getID();
+			llvm::Function* callee = funcs[id];
+			std::cout << "generating call to " << id << "(...)" << std::endl;
+
+			Node* looper = n->right_child->left_child;
+			while(looper){
+				llvm::Value* result;
+
+				// Handle IDs
+				if(not looper->attributes.empty() and looper->attributes["name"] == "ID"){
+					llvm::AllocaInst* ptr = (llvm::AllocaInst*)codegen(looper, scope);
+					result = Builder.CreateLoad(ptr);
+				}
+				// Handle Constants
+				else{
+					result = llvm::ConstantInt::get(TheContext, llvm::APInt(32, looper->val));
+				}
+				
+				printValue(result);
+				passingArgs.push_back(result);
+				looper = looper->right_sib;
+			}
+			return Builder.CreateCall(callee, passingArgs, "calltmp");
 		}
 				/****************************************************
 				 *			handle while loop control				*
@@ -354,12 +392,6 @@ void* IRGen::codegen(Node*n, int scope){
 				 ****************************************************/
 		else if(n->attributes["name"] == "if-scope") {
 			std::cout << "generating if stmt  (TODO)" << std::endl;
-		}
-				/****************************************************
-				 *			handle function call 					*
-				 ****************************************************/
-		else if(n->attributes["name"] == "call") {
-			std::cout << "generating call  (TODO)" << std::endl;
 		}
 				/****************************************************
 				 *			handle return statement					*
@@ -389,7 +421,8 @@ void* IRGen::codegen(Node*n, int scope){
 				 ****************************************************/
 		else if(n->attributes["name"] == "localDeclarations" or \
 				n->attributes["name"] == "declarationList" or \
-				n->attributes["name"] == "stmtList"){
+				n->attributes["name"] == "stmtList" or \
+				n->attributes["name"] == "argList"){
 
 			Node* looper = n->left_child;
 			while(looper){

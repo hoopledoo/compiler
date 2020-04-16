@@ -55,6 +55,7 @@ public:
 	std::string getID();
 	bool getJumpOn();
 	bool getJumpAlways();
+	bool isVal() {return raw_val;}
 
 	void walkTreePrint(int depth=0);
 	void printNode();

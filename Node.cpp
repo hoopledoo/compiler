@@ -69,22 +69,22 @@ void Node::setID(std::string s){
 }
 
 std::string Node::getName() {
-	if (attributes.count("name")) 	return attributes["name"];
+	if (not attributes.empty() and attributes.count("name")) 	return attributes["name"];
 	else 	return 0;
 }
 
 std::string Node::getLabel(){
-	if (attributes.count("label")) 	return attributes["label"];
+	if (not attributes.empty() and attributes.count("label")) 	return attributes["label"];
 	else 	return 0;
 }
 
 std::string Node::getJumpTo() {
-	if (attributes.count("jump_to")) return attributes["jump_to"];
+	if (not attributes.empty() and attributes.count("jump_to")) return attributes["jump_to"];
 	else 	return 0;
 }
 
 std::string Node::getID() {
-	if (attributes.count("id"))		return attributes["id"];
+	if (not attributes.empty() and attributes.count("id"))		return attributes["id"];
 	else	return 0;
 }
 
@@ -362,7 +362,7 @@ int Node::walkTreeCheckSymbols(int scope){
 
 			if (attributes["name"] == "funcDec"){
 				symbolTable[scope+1].clear();
-				
+
 				Node* params = left_child->getRightSib()->getRightSib();
 				int num_params = 0;
 				if(params and params->getName()=="param"){
