@@ -11,8 +11,12 @@ static llvm::LLVMContext TheContext;
 static llvm::IRBuilder<> Builder(TheContext);
 static std::unique_ptr<llvm::Module> TheModule;
 static std::string IR_string;
-static std::map<std::string, TYPE> vars; // we'll use this to keep track of 
-										 // the known variables during generation
+
+// we'll use this to keep track of 
+// the known variables during generation
+// we'll handle it essentially the same as the symbol table used
+// during the semantic analysis
+static std::map<int, std::map<std::string, llvm::AllocaInst *>> vars; 	
 
 IRGen::IRGen(std::string s){
 	TheModule = llvm::make_unique<llvm::Module> (s + "_module", TheContext);
@@ -27,11 +31,17 @@ void setIRString(){
 	delete ir_out;
 }
 
+void printValue(llvm::Value* v){
+	llvm::raw_ostream* ir_out = new llvm::raw_os_ostream(std::cout);
+	v->print(*ir_out, false);
+	delete ir_out;
+}
+
 // Perform initial setup required to generate IR using llvm
 void IRGen::generateIR(Node* root){
 	llvm::Module* module = TheModule.get();
-
-	codegen(root);
+	
+	llvm::Value* val = codegen(root);
 
 	setIRString();
 	std::cout << IR_string << std::endl;
@@ -39,11 +49,25 @@ void IRGen::generateIR(Node* root){
 	return;
 }
 
+void clearScope(int scope){
+	if(not vars[scope].empty()){
+		vars[scope].clear();
+	}
+}
+
+static llvm::AllocaInst *CreateEntryBlockAlloca(llvm::Function *TheFunction, 
+											const std::string &VarName,
+											llvm::Type* t){
+	llvm::IRBuilder<> TmpB(&TheFunction->getEntryBlock(), TheFunction->getEntryBlock().begin());
+	return TmpB.CreateAlloca(t, 0, VarName.c_str());
+}
+
 // Recursive method to generate code for each node
 // This behavior will be defined based on the type
 // of node we are dealing with
-llvm::Value* IRGen::codegen(Node*n){
+llvm::Value* IRGen::codegen(Node*n, int scope){
 	llvm::Value* L = 0;
+	bool scope_change = false;
 
 	// Handle the different named nodes
 	if(not n->attributes.empty() and n->attributes.count("name")){	
@@ -51,51 +75,82 @@ llvm::Value* IRGen::codegen(Node*n){
 
 		if(n->attributes["name"] == "ADD") {
 			std::cout << "generating '+'" << std::endl;
+			L = codegen(n->left_child, scope);
+			llvm::Value* R = codegen(n->right_child, scope);
+			return Builder.CreateAdd(L,R);
 		}	
 				/*		handle subtraction operator				*/
 
 		else if(n->attributes["name"] == "SUB") {
 			std::cout << "generating '-'" << std::endl;
+			L = codegen(n->left_child, scope);
+			llvm::Value* R = codegen(n->right_child, scope);
+			return Builder.CreateSub(L,R);
 		}	
 				/*		handle multiply operator				*/
 
 		else if(n->attributes["name"] == "MULT") {
 			std::cout << "generating '*'" << std::endl;
+			L = codegen(n->left_child, scope);
+			llvm::Value* R = codegen(n->right_child, scope);
+			return Builder.CreateMul(L,R);
+
 		}
 				/*		handle division operator				*/
 
 		else if(n->attributes["name"] == "DIV") {
 			std::cout << "generating '/'" << std::endl;
+			L = codegen(n->left_child, scope);
+			llvm::Value* R = codegen(n->right_child, scope);
+			return Builder.CreateSDiv(L,R);
 		}
 				/*		handle equality operator				*/
 
 		else if(n->attributes["name"] == "EQ") {
 			std::cout << "generating '=='" << std::endl;
+			L = codegen(n->left_child, scope);
+			llvm::Value* R = codegen(n->right_child, scope);
+			return Builder.CreateICmpEQ(L,R);
 		}
 				/*		handle inequality operator				*/
 
 		else if(n->attributes["name"] == "NEQ") {
 			std::cout << "generating '!='" << std::endl;
+			L = codegen(n->left_child, scope);
+			llvm::Value* R = codegen(n->right_child, scope);
+			return Builder.CreateICmpNE(L,R);
 		}
 				/*		handle less than operator				*/
 
 		else if(n->attributes["name"] == "LT") {
 			std::cout << "generating '<'" << std::endl;
+			L = codegen(n->left_child, scope);
+			llvm::Value* R = codegen(n->right_child, scope);
+			return Builder.CreateICmpSLT(L,R);
 		}
 				/*		handle less than or equal operator		*/
 
 		else if(n->attributes["name"] == "LTE") {
 			std::cout << "generating '<='" << std::endl;
+			L = codegen(n->left_child, scope);
+			llvm::Value* R = codegen(n->right_child, scope);
+			return Builder.CreateICmpSLE(L,R);
 		}
 				/*		handle greater than operator			*/
 
 		else if(n->attributes["name"] == "GT") {
 			std::cout << "generating '>'" << std::endl;
+			L = codegen(n->left_child, scope);
+			llvm::Value* R = codegen(n->right_child, scope);
+			return Builder.CreateICmpSGT(L,R);
 		}
 				/*		handle greater than or equal operator	*/
 
 		else if(n->attributes["name"] == "GTE") {
 			std::cout << "generating '>='" << std::endl;
+			L = codegen(n->left_child, scope);
+			llvm::Value* R = codegen(n->right_child, scope);
+			return Builder.CreateICmpSGE(L,R);
 		}
 				/*		handle if statement 					*/
 
@@ -111,21 +166,84 @@ llvm::Value* IRGen::codegen(Node*n){
 
 		else if(n->attributes["name"] == "RETURN") {
 			std::cout << "generating return" << std::endl;
+			// TODO, figure out how to create return value (if there is one 
+			// likely solution = using the vars to lookup the value
+			// return Builder.CreateRet();
 		}
 				/*		handle variable declaration				*/
 
 		else if(n->attributes["name"] == "varDec") {
 			std::cout << "generating variable declaration" << std::endl;
+			std::string id = n->right_child->getID();
+			llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
+			llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32Ty(TheContext));
+			vars[scope][id] = Alloca;
 		}		
 				/*		handle array variable declaration		*/
 
 		else if(n->attributes["name"] == "arrayVarDec") {
 			std::cout << "generating array declaration" << std::endl;
+			std::string id = n->right_child->getID();
+			llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
+			llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32PtrTy(TheContext));
+			vars[scope][id] = Alloca;
 		}	
 				/*		handle function  declaration			*/
 
 		else if(n->attributes["name"] == "funcDec") {
 			std::cout << "generating function declaration" << std::endl;
+
+			// Start by creating the argument list
+		  	std::vector<llvm::Type*> argList(0);
+
+			std::string rtype = n->left_child->getName();
+			std::string name = n->left_child->right_sib->getID();
+			int num_params = 0;
+			
+			// Build out the array of parameters.
+			if(n->left_child->right_sib->right_sib->getName() == "paramList"){
+				Node* param_list = n->left_child->right_sib->right_sib;
+				Node* param = param_list->left_child;
+
+				// Loop through all params
+				while(param){
+					if(param->getName() == "arrayParam"){
+						argList.push_back(llvm::Type::getInt32PtrTy(TheContext));
+					}
+					else if(param->getName() == "param"){
+						argList.push_back(llvm::Type::getInt32Ty(TheContext));
+					}
+					
+					param = param->right_sib;
+				}
+			}
+			
+			llvm::FunctionType *FT = 0;
+			if(rtype == "INT"){
+				FT = llvm::FunctionType::get(llvm::Type::getInt32Ty(TheContext), argList, false);
+			}
+			else if(rtype == "VOID"){
+				FT = llvm::FunctionType::get(llvm::Type::getVoidTy(TheContext), argList, false);
+			}
+			else{
+				std::cerr << "FATAL ERROR: return type for function neither INT nor VOID - should never see this msg." << std::endl;
+			}
+
+			llvm::Function *F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, name, TheModule.get());
+
+			// Create a new basic block to start insertion into.
+			llvm::BasicBlock *BB = llvm::BasicBlock::Create(TheContext, "entry", F);
+			Builder.SetInsertPoint(BB);
+
+			// OBTAIN THE FUNCTION CONTENT:
+			llvm::Value* funcVal = codegen(n->right_child, scope);
+
+			if (funcVal) {
+  				// Validate the generated code, checking for consistency.
+  				llvm::verifyFunction(*F);
+			}
+
+			return funcVal;
 		}	
 				/*		handle assignment operator				*/
 
@@ -137,21 +255,28 @@ llvm::Value* IRGen::codegen(Node*n){
 		else if(n->attributes["name"] == "while-scope") {
 			std::cout << "generating '='" << std::endl;
 		}
+				/*		handle scope change on compound stmt 	*/
+		else if (n->attributes["name"] == "compoundStmt" ){
+			scope_change = true;
+			scope++;
+		}
 
 	}
 	else if (n->raw_val) {
 		std::cout << "handling constant value: " << n->val << std::endl;
+		return llvm::ConstantInt::get(TheContext, llvm::APInt(32, n->val));
 	}
 
 	Node* looper = 0;
 	if(n and n->left_child){ 
 		looper = n->left_child; 
 		while(looper){
-			codegen(looper);
+			codegen(looper, scope);
 			looper = looper->getRightSib();
 		}
 	}
 
-	return L;
+	if(scope_change) clearScope(scope--);
 
+	return L;
 }
