@@ -40,8 +40,17 @@ void printValue(llvm::Value* v){
 // Perform initial setup required to generate IR using llvm
 void IRGen::generateIR(Node* root){
 	llvm::Module* module = TheModule.get();
+
+	// insert the input() and output() functions
+	std::vector<llvm::Type*> argList(0);
+	llvm::FunctionType* FT = llvm::FunctionType::get(llvm::Type::getInt32Ty(TheContext), argList, false);
+	module->getOrInsertFunction("input", FT);
+
+	argList.push_back(llvm::Type::getInt32Ty(TheContext));
+	FT = llvm::FunctionType::get(llvm::Type::getVoidTy(TheContext), argList, false);
+	module->getOrInsertFunction("output", FT);
 	
-	llvm::Value* val = codegen(root);
+	llvm::Value* val = (llvm::Value*)codegen(root);
 
 	setIRString();
 	std::cout << IR_string << std::endl;
@@ -65,9 +74,8 @@ static llvm::AllocaInst *CreateEntryBlockAlloca(llvm::Function *TheFunction,
 // Recursive method to generate code for each node
 // This behavior will be defined based on the type
 // of node we are dealing with
-llvm::Value* IRGen::codegen(Node*n, int scope){
+void* IRGen::codegen(Node*n, int scope){
 	llvm::Value* L = 0;
-	bool scope_change = false;
 
 	// Handle the different named nodes
 	if(not n->attributes.empty() and n->attributes.count("name")){	
@@ -75,24 +83,24 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 
 		if(n->attributes["name"] == "ADD") {
 			std::cout << "generating '+'" << std::endl;
-			L = codegen(n->left_child, scope);
-			llvm::Value* R = codegen(n->right_child, scope);
+			L = (llvm::Value*)codegen(n->left_child, scope);
+			llvm::Value* R = (llvm::Value*)codegen(n->right_child, scope);
 			return Builder.CreateAdd(L,R);
 		}	
 				/*		handle subtraction operator				*/
 
 		else if(n->attributes["name"] == "SUB") {
 			std::cout << "generating '-'" << std::endl;
-			L = codegen(n->left_child, scope);
-			llvm::Value* R = codegen(n->right_child, scope);
+			L = (llvm::Value*)codegen(n->left_child, scope);
+			llvm::Value* R = (llvm::Value*)codegen(n->right_child, scope);
 			return Builder.CreateSub(L,R);
 		}	
 				/*		handle multiply operator				*/
 
 		else if(n->attributes["name"] == "MULT") {
 			std::cout << "generating '*'" << std::endl;
-			L = codegen(n->left_child, scope);
-			llvm::Value* R = codegen(n->right_child, scope);
+			L = (llvm::Value*)codegen(n->left_child, scope);
+			llvm::Value* R = (llvm::Value*)codegen(n->right_child, scope);
 			return Builder.CreateMul(L,R);
 
 		}
@@ -100,56 +108,56 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 
 		else if(n->attributes["name"] == "DIV") {
 			std::cout << "generating '/'" << std::endl;
-			L = codegen(n->left_child, scope);
-			llvm::Value* R = codegen(n->right_child, scope);
+			L = (llvm::Value*)codegen(n->left_child, scope);
+			llvm::Value* R = (llvm::Value*)codegen(n->right_child, scope);
 			return Builder.CreateSDiv(L,R);
 		}
 				/*		handle equality operator				*/
 
 		else if(n->attributes["name"] == "EQ") {
 			std::cout << "generating '=='" << std::endl;
-			L = codegen(n->left_child, scope);
-			llvm::Value* R = codegen(n->right_child, scope);
+			L = (llvm::Value*)codegen(n->left_child, scope);
+			llvm::Value* R = (llvm::Value*)codegen(n->right_child, scope);
 			return Builder.CreateICmpEQ(L,R);
 		}
 				/*		handle inequality operator				*/
 
 		else if(n->attributes["name"] == "NEQ") {
 			std::cout << "generating '!='" << std::endl;
-			L = codegen(n->left_child, scope);
-			llvm::Value* R = codegen(n->right_child, scope);
+			L = (llvm::Value*)codegen(n->left_child, scope);
+			llvm::Value* R = (llvm::Value*)codegen(n->right_child, scope);
 			return Builder.CreateICmpNE(L,R);
 		}
 				/*		handle less than operator				*/
 
 		else if(n->attributes["name"] == "LT") {
 			std::cout << "generating '<'" << std::endl;
-			L = codegen(n->left_child, scope);
-			llvm::Value* R = codegen(n->right_child, scope);
+			L = (llvm::Value*)codegen(n->left_child, scope);
+			llvm::Value* R = (llvm::Value*)codegen(n->right_child, scope);
 			return Builder.CreateICmpSLT(L,R);
 		}
 				/*		handle less than or equal operator		*/
 
 		else if(n->attributes["name"] == "LTE") {
 			std::cout << "generating '<='" << std::endl;
-			L = codegen(n->left_child, scope);
-			llvm::Value* R = codegen(n->right_child, scope);
+			L = (llvm::Value*)codegen(n->left_child, scope);
+			llvm::Value* R = (llvm::Value*)codegen(n->right_child, scope);
 			return Builder.CreateICmpSLE(L,R);
 		}
 				/*		handle greater than operator			*/
 
 		else if(n->attributes["name"] == "GT") {
 			std::cout << "generating '>'" << std::endl;
-			L = codegen(n->left_child, scope);
-			llvm::Value* R = codegen(n->right_child, scope);
+			L = (llvm::Value*)codegen(n->left_child, scope);
+			llvm::Value* R = (llvm::Value*)codegen(n->right_child, scope);
 			return Builder.CreateICmpSGT(L,R);
 		}
 				/*		handle greater than or equal operator	*/
 
 		else if(n->attributes["name"] == "GTE") {
 			std::cout << "generating '>='" << std::endl;
-			L = codegen(n->left_child, scope);
-			llvm::Value* R = codegen(n->right_child, scope);
+			L = (llvm::Value*)codegen(n->left_child, scope);
+			llvm::Value* R = (llvm::Value*)codegen(n->right_child, scope);
 			return Builder.CreateICmpSGE(L,R);
 		}
 				/*		handle if statement 					*/
@@ -236,7 +244,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 			Builder.SetInsertPoint(BB);
 
 			// OBTAIN THE FUNCTION CONTENT:
-			llvm::Value* funcVal = codegen(n->right_child, scope);
+			llvm::Value* funcVal = (llvm::Value*)codegen(n->right_child, scope);
 
 			if (funcVal) {
   				// Validate the generated code, checking for consistency.
@@ -245,10 +253,33 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 
 			return funcVal;
 		}	
+		else if(n->attributes["name"] == "ID"){
+			return vars[scope][n->getID()];
+		}
 				/*		handle assignment operator				*/
 
 		else if(n->attributes["name"] == "ASSIGN") {
 			std::cout << "generating '='" << std::endl;
+			int scope_found = -1;
+			std::string id = n->left_child->getID();
+
+			for(int i=scope; i>=0; i--){
+				if(not vars[i].empty() and vars[i].count(id)){
+					scope_found = i;
+					break;
+				}
+			}
+
+			// Get the memory reference
+			llvm::AllocaInst* Alloca = (llvm::AllocaInst*)codegen(n->left_child, scope);
+			//llvm::Value* CurVar = Builder.CreateLoad(Alloca);
+
+			// Recursively evaluate what the right-hand side of the equals sign should be
+			llvm::Value* NextVar = (llvm::Value*)codegen(n->right_child, scope);
+
+			// Store the results back into the var
+			Builder.CreateStore(NextVar, Alloca);
+
 		}
 				/*		handle while loop 						*/
 
@@ -257,8 +288,30 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 		}
 				/*		handle scope change on compound stmt 	*/
 		else if (n->attributes["name"] == "compoundStmt" ){
-			scope_change = true;
 			scope++;
+
+			Node* looper = n->left_child;
+			while(looper){
+				codegen(looper, scope);
+				looper = looper->right_sib;
+			}
+
+			clearScope(scope--);
+		}
+
+		else if(n->attributes["name"] == "while-scope"){
+
+		}
+
+		else if(n->attributes["name"] == "localDeclarations" or \
+				n->attributes["name"] == "declarationList" or \
+				n->attributes["name"] == "stmtList"){
+
+			Node* looper = n->left_child;
+			while(looper){
+				codegen(looper, scope);
+				looper = looper->right_sib;
+			}
 		}
 
 	}
@@ -267,6 +320,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 		return llvm::ConstantInt::get(TheContext, llvm::APInt(32, n->val));
 	}
 
+	/*
 	Node* looper = 0;
 	if(n and n->left_child){ 
 		looper = n->left_child; 
@@ -275,8 +329,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 			looper = looper->getRightSib();
 		}
 	}
-
-	if(scope_change) clearScope(scope--);
+	*/
 
 	return L;
 }
