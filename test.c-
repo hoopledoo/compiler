@@ -1,4 +1,5 @@
 int same(int a){
+	output(a);
 	return a;
 }
 
@@ -38,5 +39,4 @@ int main(void){
 
 	f(10, 100, a);
 
-	/* output(2); */
 }

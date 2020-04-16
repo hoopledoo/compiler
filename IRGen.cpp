@@ -47,12 +47,14 @@ void IRGen::generateIR(Node* root){
 	// insert the input() and output() functions
 	std::vector<llvm::Type*> argList(0);
 	llvm::FunctionType* FT = llvm::FunctionType::get(llvm::Type::getInt32Ty(TheContext), argList, false);
-	module->getOrInsertFunction("input", FT);
+	llvm::Function *inF = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, "input", nullptr);
+	funcs["input"] = inF;
 
 	argList.push_back(llvm::Type::getInt32Ty(TheContext));
 	FT = llvm::FunctionType::get(llvm::Type::getVoidTy(TheContext), argList, false);
-	module->getOrInsertFunction("output", FT);
-	
+	llvm::Function *outF = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, "output", nullptr);
+	funcs["output"] = outF;
+
 	// Generate the code for the entire module
 	llvm::Value* val = (llvm::Value*)codegen(root);
 
@@ -384,7 +386,7 @@ void* IRGen::codegen(Node*n, int scope){
 				passingArgs.push_back(result);
 				arg = arg->right_sib;
 			}
-			
+
 			return Builder.CreateCall(callee, passingArgs);
 		}
 				/****************************************************
