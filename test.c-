@@ -12,6 +12,13 @@ int main(void){
 
 	a = b*c + 1;
 
+	
+	{
+		int a;
+		a = b;
+	}
+	
+
 	a = 2*2;
 	a = a;
 }

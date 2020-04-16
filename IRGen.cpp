@@ -190,8 +190,8 @@ void* IRGen::codegen(Node*n, int scope){
 				 *			handle variable declaration				*
 				 ****************************************************/
 		else if(n->attributes["name"] == "varDec") {
-			std::cout << "generating variable declaration" << std::endl;
 			std::string id = n->right_child->getID();
+			std::cout << "generating variable declaration: " << id << " in scope "<< scope<< std::endl;
 			llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
 			llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32Ty(TheContext));
 			vars[scope][id] = Alloca;
@@ -200,8 +200,8 @@ void* IRGen::codegen(Node*n, int scope){
 				 *			handle array variable declaration 		*
 				 ****************************************************/
 		else if(n->attributes["name"] == "arrayVarDec") {
-			std::cout << "generating array declaration" << std::endl;
 			std::string id = n->right_child->getID();
+			std::cout << "generating array declaration" << id << " in scope "<< scope<< std::endl;
 			llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
 			llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32PtrTy(TheContext));
 			vars[scope][id] = Alloca;
@@ -260,6 +260,7 @@ void* IRGen::codegen(Node*n, int scope){
 
 			// Allocate our arguments, and insert them into our vars symbol table
 			// Start by clearing the symbol table, in case there's anything in it.
+			std::cout << "clearing scope " << scope+1 << std::endl;
 			vars[scope+1].clear();
 
 			auto name = argNames.begin();
@@ -271,7 +272,7 @@ void* IRGen::codegen(Node*n, int scope){
 			}
 
 			// OBTAIN THE FUNCTION CONTENT:
-			llvm::Value* funcVal = (llvm::Value*)codegen(n->right_child, scope);
+			llvm::Value* funcVal = (llvm::Value*)codegen(n->right_child, scope+1);
 
 			if (funcVal) {
   				// Validate the generated code, checking for consistency.
@@ -281,7 +282,11 @@ void* IRGen::codegen(Node*n, int scope){
 			return funcVal;
 		}	
 		else if(n->attributes["name"] == "ID"){
-			return vars[scope][n->getID()];
+			for(int i=scope; i>=0; i--){
+				std::cout << "Checking scope " << i << " for variable " << n->getID() << std::endl;
+				if (vars[i].count(n->getID())) return vars[i][n->getID()];
+			}
+			return 0;
 		}
 				/****************************************************
 				 *			handle assignment operator				*
@@ -303,6 +308,7 @@ void* IRGen::codegen(Node*n, int scope){
 
 				// Get the memory reference
 				llvm::AllocaInst* Alloca = (llvm::AllocaInst*)codegen(n->left_child, scope_found);
+				std::cout << "Obtained reference for left side" << std::endl;
 
 				llvm::Value* NextVar = 0;
 				// Recursively evaluate what the right-hand side of the equals sign should be
@@ -315,6 +321,7 @@ void* IRGen::codegen(Node*n, int scope){
 					std::cout << "handling something else.. " << std::endl;
 					NextVar = (llvm::Value*)codegen(n->right_child, scope);
 				}
+				std::cout << "Obtained reference for right side." << std::endl;
 
 				// Store the results back into the var
 				Builder.CreateStore(NextVar, Alloca);
@@ -335,13 +342,15 @@ void* IRGen::codegen(Node*n, int scope){
 				 *		handle scope change on compound stmt 		*
 				 ****************************************************/		
 		else if (n->attributes["name"] == "compoundStmt" ){
-			vars[scope++].clear();
+			scope++;
 
 			Node* looper = n->left_child;
 			while(looper){
 				codegen(looper, scope);
 				looper = looper->right_sib;
 			}
+			std::cout << "clearing scope " << scope-1 << std::endl;
+			vars[scope--].clear();
 		}
 				/****************************************************
 				 *			handle nodes that recurse 				*
