@@ -166,27 +166,6 @@ void* IRGen::codegen(Node*n, int scope){
 			return Builder.CreateICmpSGE(L,R);
 		}
 				/****************************************************
-				 *			handle if statement						*
-				 ****************************************************/
-		else if(n->attributes["name"] == "if-scope") {
-			std::cout << "generating if stmt" << std::endl;
-		}
-				/****************************************************
-				 *			handle function call 					*
-				 ****************************************************/
-		else if(n->attributes["name"] == "call") {
-			std::cout << "generating call" << std::endl;
-		}
-				/****************************************************
-				 *			handle return statement					*
-				 ****************************************************/
-		else if(n->attributes["name"] == "RETURN") {
-			std::cout << "generating return" << std::endl;
-			// TODO, figure out how to create return value (if there is one 
-			// likely solution = using the vars to lookup the value
-			// return Builder.CreateRet();
-		}
-				/****************************************************
 				 *			handle variable declaration				*
 				 ****************************************************/
 		else if(n->attributes["name"] == "varDec") {
@@ -292,10 +271,12 @@ void* IRGen::codegen(Node*n, int scope){
 		else if(n->attributes["name"] == "ASSIGN") {
 			std::cout << "generating '='" << std::endl;
 
-			// If we're assigning to an ID directly
+			/* Handle assignment directly to variable */
+			llvm::AllocaInst* Alloca = 0;
+			std::string id;
 			if(n->left_child->getName() == "ID"){
 				int scope_found = -1;
-				std::string id = n->left_child->getID();
+				id = n->left_child->getID();
 
 				for(int i=scope; i>=0; i--){
 					if(not vars[i].empty() and vars[i].count(id)){
@@ -305,40 +286,93 @@ void* IRGen::codegen(Node*n, int scope){
 				}
 
 				// Get the memory reference
-				llvm::AllocaInst* Alloca = (llvm::AllocaInst*)codegen(n->left_child, scope_found);
-				std::cout << "Obtained reference for left side" << std::endl;
-
-				llvm::Value* NextVar = 0;
-				// Recursively evaluate what the right-hand side of the equals sign should be
-				if(not n->right_child->attributes.empty() and n->right_child->getName()=="ID"){
-					std::cout << "handling straight up ID" << std::endl;
-					llvm::AllocaInst* tmp_a = (llvm::AllocaInst*)codegen(n->right_child, scope);
-					NextVar = Builder.CreateLoad(tmp_a);
-				}
-				else{
-					std::cout << "handling something else.. " << std::endl;
-					NextVar = (llvm::Value*)codegen(n->right_child, scope);
-				}
-				std::cout << "Obtained reference for right side." << std::endl;
-
-				// Store the results back into the var
-				Builder.CreateStore(NextVar, Alloca);
-			}
-			// Otherwise, we're dealing with an array index
+				Alloca = (llvm::AllocaInst*)codegen(n->left_child, scope_found);
+			}	
+			/* Handle assignment to an array location */
 			else if(n->left_child->getName() == "varIndex"){
-				std::cout << "handling indexed array assignment... " << std::endl;
+				llvm::AllocaInst* ptr = 0;
+				id = n->left_child->left_child->getID();
+				int indx = n->left_child->right_child->val;
+				std::cout << "handling indexed array assignment " << id << "[" << indx << "]\n";
+
+				for(int i=scope; i>=0; i--){
+					std::cout << "Checking scope " << i << " for variable " << id << std::endl;
+					if (vars[i].count(id)) {
+						std::cout << "ptr found in scope " << i << std::endl;
+						ptr = vars[i][id];
+					}
+				}
+				// TODO: remove -- return Builder.CreateGEP(llvm::Type::getInt32Ty(TheContext), ptr);
+				Alloca = (llvm::AllocaInst* )Builder.CreateConstGEP1_32(ptr, indx);
+
 			}
 
+			std::cout << "Obtained reference for left side" << std::endl;
+
+			llvm::Value* NextVar = 0;
+			// Recursively evaluate what the right-hand side of the equals sign should be
+			if(not n->right_child->attributes.empty() and n->right_child->getName()=="ID"){
+				std::cout << "handling straight up ID" << std::endl;
+				llvm::AllocaInst* tmp_a = (llvm::AllocaInst*)codegen(n->right_child, scope);
+				NextVar = Builder.CreateLoad(tmp_a);
+			}
+			else{
+				std::cout << "handling something else.. " << std::endl;
+				NextVar = (llvm::Value*)codegen(n->right_child, scope);
+			}
+			std::cout << "Obtained reference for right side." << std::endl;
+
+			// Store the results back into the var
+			return Builder.CreateStore(NextVar, Alloca);
+		}
+				/****************************************************
+				 *			handle var Index reference				*
+				 ****************************************************/
+		else if(n->attributes["name"] == "varIndex"){
+			llvm::AllocaInst* ptr = 0;
+			int indx = n->right_child->val;
+			std::string id = n->left_child->getID();
+			std::cout << "handling array index " << id << "[" << indx << "]" << std::endl;
+			for(int i=scope; i>=0; i--){
+				std::cout << "Checking scope " << i << " for variable " << id << std::endl;
+				if (vars[i].count(id)) {
+					std::cout << "ptr found in scope " << i << std::endl;
+					ptr = vars[i][id];
+				}
+			}
+			// TODO: remove -- return Builder.CreateGEP(llvm::Type::getInt32Ty(TheContext), ptr);
+			return Builder.CreateConstGEP1_32(ptr, indx);
 		}
 				/****************************************************
 				 *			handle while loop control				*
 				 ****************************************************/
 		else if(n->attributes["name"] == "while-scope") {
-			std::cout << "generating 'while loop'" << std::endl;
+			std::cout << "generating 'while loop'  (TODO)" << std::endl;
+		}
+				/****************************************************
+				 *			handle if statement						*
+				 ****************************************************/
+		else if(n->attributes["name"] == "if-scope") {
+			std::cout << "generating if stmt  (TODO)" << std::endl;
+		}
+				/****************************************************
+				 *			handle function call 					*
+				 ****************************************************/
+		else if(n->attributes["name"] == "call") {
+			std::cout << "generating call  (TODO)" << std::endl;
+		}
+				/****************************************************
+				 *			handle return statement					*
+				 ****************************************************/
+		else if(n->attributes["name"] == "RETURN") {
+			std::cout << "generating return  (TODO)" << std::endl;
+			// TODO, figure out how to create return value (if there is one 
+			// likely solution = using the vars to lookup the value
+			// return Builder.CreateRet();
 		}
 				/****************************************************
 				 *		handle scope change on compound stmt 		*
-				 ****************************************************/		
+				 ****************************************************/					 	
 		else if (n->attributes["name"] == "compoundStmt" ){
 			scope++;
 

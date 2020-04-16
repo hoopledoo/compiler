@@ -1,5 +1,6 @@
 void function(int a, int b, int c[]){
 	c[0] = a;
+	c[1] = b;
 }
 
 void functionTwo(int a){
