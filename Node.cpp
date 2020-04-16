@@ -361,6 +361,8 @@ int Node::walkTreeCheckSymbols(int scope){
 			/* HANDLE DIFFERENT TYPES OF DECLARATIONS */
 
 			if (attributes["name"] == "funcDec"){
+				symbolTable[scope+1].clear();
+				
 				Node* params = left_child->getRightSib()->getRightSib();
 				int num_params = 0;
 				if(params and params->getName()=="param"){

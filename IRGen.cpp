@@ -50,6 +50,7 @@ void IRGen::generateIR(Node* root){
 	FT = llvm::FunctionType::get(llvm::Type::getVoidTy(TheContext), argList, false);
 	module->getOrInsertFunction("output", FT);
 	
+	// Generate the code for the entire module
 	llvm::Value* val = (llvm::Value*)codegen(root);
 
 	setIRString();
@@ -78,7 +79,7 @@ void* IRGen::codegen(Node*n, int scope){
 	llvm::Value* L = 0;
 
 	// Handle the different named nodes
-	if(not n->attributes.empty() and n->attributes.count("name")){	
+	if(n and not n->attributes.empty() and n->attributes.count("name")){	
 				/*		handle add operator						*/
 
 		if(n->attributes["name"] == "ADD") {
@@ -203,9 +204,11 @@ void* IRGen::codegen(Node*n, int scope){
 
 			// Start by creating the argument list
 		  	std::vector<llvm::Type*> argList(0);
+		  	std::vector<std::string> argNames(0);
 
 			std::string rtype = n->left_child->getName();
-			std::string name = n->left_child->right_sib->getID();
+			std::string id = n->left_child->right_sib->getID();
+			std::cout << "function name = " << id << std::endl;
 			int num_params = 0;
 			
 			// Build out the array of parameters.
@@ -217,9 +220,11 @@ void* IRGen::codegen(Node*n, int scope){
 				while(param){
 					if(param->getName() == "arrayParam"){
 						argList.push_back(llvm::Type::getInt32PtrTy(TheContext));
+						argNames.push_back(param->right_child->getID());
 					}
 					else if(param->getName() == "param"){
 						argList.push_back(llvm::Type::getInt32Ty(TheContext));
+						argNames.push_back(param->right_child->getID());
 					}
 					
 					param = param->right_sib;
@@ -237,11 +242,23 @@ void* IRGen::codegen(Node*n, int scope){
 				std::cerr << "FATAL ERROR: return type for function neither INT nor VOID - should never see this msg." << std::endl;
 			}
 
-			llvm::Function *F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, name, TheModule.get());
+			llvm::Function *F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, id, TheModule.get());
 
 			// Create a new basic block to start insertion into.
 			llvm::BasicBlock *BB = llvm::BasicBlock::Create(TheContext, "entry", F);
 			Builder.SetInsertPoint(BB);
+
+			// Allocate our arguments, and insert them into our vars symbol table
+			// Start by clearing the symbol table, in case there's anything in it.
+			vars[scope+1].clear();
+
+			auto name = argNames.begin();
+			for(auto &Arg : F->args()){
+				llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(F, *name, Arg.getType());
+				Builder.CreateStore(&Arg, Alloca);
+				vars[scope+1][Arg.getName()] = Alloca;
+				name++;
+			}
 
 			// OBTAIN THE FUNCTION CONTENT:
 			llvm::Value* funcVal = (llvm::Value*)codegen(n->right_child, scope);
@@ -315,21 +332,10 @@ void* IRGen::codegen(Node*n, int scope){
 		}
 
 	}
-	else if (n->raw_val) {
+	else if (n and n->raw_val) {
 		std::cout << "handling constant value: " << n->val << std::endl;
 		return llvm::ConstantInt::get(TheContext, llvm::APInt(32, n->val));
 	}
-
-	/*
-	Node* looper = 0;
-	if(n and n->left_child){ 
-		looper = n->left_child; 
-		while(looper){
-			codegen(looper, scope);
-			looper = looper->getRightSib();
-		}
-	}
-	*/
 
 	return L;
 }
