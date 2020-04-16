@@ -1,13 +1,20 @@
+int same(int a){
+	return a;
+}
+
 void f(int a, int b, int c[]){
 	c[0] = a;
 	c[1] = b;
 	c[3] = c[4];
+	a = same(b);
+	return;
 }
 
 void functionTwo(int a, int d[]){
 	int b;
 	b = a;
 	a = d[1];
+	return;
 }
 
 int main(void){
@@ -29,5 +36,7 @@ int main(void){
 	a[2] = 2*2;
 
 
-	f(1, c, a);
+	f(10, 100, a);
+
+	/* output(2); */
 }

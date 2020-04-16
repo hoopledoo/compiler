@@ -361,25 +361,56 @@ void* IRGen::codegen(Node*n, int scope){
 			llvm::Function* callee = funcs[id];
 			std::cout << "generating call to " << id << "(...)" << std::endl;
 
-			Node* looper = n->right_child->left_child;
-			while(looper){
+			Node* arg = n->right_child;
+			if(not arg->raw_val and arg->getName() == "argList"){
+				arg = arg->left_child;
+			}
+
+			while(arg){
 				llvm::Value* result;
 
 				// Handle IDs
-				if(not looper->attributes.empty() and looper->attributes["name"] == "ID"){
-					llvm::AllocaInst* ptr = (llvm::AllocaInst*)codegen(looper, scope);
+				if(not arg->attributes.empty() and arg->attributes["name"] == "ID"){
+					llvm::AllocaInst* ptr = (llvm::AllocaInst*)codegen(arg, scope);
 					result = Builder.CreateLoad(ptr);
 				}
 				// Handle Constants
 				else{
-					result = llvm::ConstantInt::get(TheContext, llvm::APInt(32, looper->val));
+					result = llvm::ConstantInt::get(TheContext, llvm::APInt(32, arg->val));
 				}
 				
 				printValue(result);
+				std::cout << std::endl;
 				passingArgs.push_back(result);
-				looper = looper->right_sib;
+				arg = arg->right_sib;
 			}
-			return Builder.CreateCall(callee, passingArgs, "calltmp");
+			
+			return Builder.CreateCall(callee, passingArgs);
+		}
+				/****************************************************
+				 *			handle return statement					*
+				 ****************************************************/
+		else if(n->attributes["name"] == "RETURN") {
+			// Handle returns with a return value
+			if(n->left_child){
+				llvm::AllocaInst* ptr = 0;
+				std::string id = n->left_child->getID();
+				std::cout << "generating return " << id << std::endl;
+				for(int i=scope; i>=0; i--){
+					std::cout << "Checking scope " << i << " for variable " << id << std::endl;
+					if (vars[i].count(id)) {
+						std::cout << "ptr found in scope " << i << std::endl;
+						ptr = vars[i][id];
+						break;
+					}
+				}
+				llvm::Value* retVal = Builder.CreateLoad(ptr);
+				return Builder.CreateRet(retVal);
+			}
+			else{
+				std::cout << "generating return void" << std::endl;
+				return Builder.CreateRetVoid();
+			}
 		}
 				/****************************************************
 				 *			handle while loop control				*
@@ -392,15 +423,6 @@ void* IRGen::codegen(Node*n, int scope){
 				 ****************************************************/
 		else if(n->attributes["name"] == "if-scope") {
 			std::cout << "generating if stmt  (TODO)" << std::endl;
-		}
-				/****************************************************
-				 *			handle return statement					*
-				 ****************************************************/
-		else if(n->attributes["name"] == "RETURN") {
-			std::cout << "generating return  (TODO)" << std::endl;
-			// TODO, figure out how to create return value (if there is one 
-			// likely solution = using the vars to lookup the value
-			// return Builder.CreateRet();
 		}
 				/****************************************************
 				 *		handle scope change on compound stmt 		*
