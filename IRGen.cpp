@@ -191,7 +191,7 @@ void* IRGen::codegen(Node*n, int scope){
 				 ****************************************************/
 		else if(n->attributes["name"] == "varDec") {
 			std::string id = n->right_child->getID();
-			std::cout << "generating variable declaration: " << id << " in scope "<< scope<< std::endl;
+			std::cout << "variable declaration: " << id << " in scope "<< scope<< std::endl;
 			llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
 			llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32Ty(TheContext));
 			vars[scope][id] = Alloca;
@@ -201,7 +201,7 @@ void* IRGen::codegen(Node*n, int scope){
 				 ****************************************************/
 		else if(n->attributes["name"] == "arrayVarDec") {
 			std::string id = n->right_child->getID();
-			std::cout << "generating array declaration" << id << " in scope "<< scope<< std::endl;
+			std::cout << "array declaration" << id << " in scope "<< scope<< std::endl;
 			llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
 			llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32PtrTy(TheContext));
 			vars[scope][id] = Alloca;
@@ -210,35 +210,32 @@ void* IRGen::codegen(Node*n, int scope){
 				 *			handle function declaration				*
 				 ****************************************************/
 		else if(n->attributes["name"] == "funcDec") {
-			std::cout << "generating function declaration" << std::endl;
-
 			// Start by creating the argument list
 		  	std::vector<llvm::Type*> argList(0);
 		  	std::vector<std::string> argNames(0);
 
 			std::string rtype = n->left_child->getName();
 			std::string id = n->left_child->right_sib->getID();
-			std::cout << "function name = " << id << std::endl;
+			std::cout << "function declaration for " << id << " in scope " << scope << std::endl;
 			int num_params = 0;
 			
-			// Build out the array of parameters.
-			if(n->left_child->right_sib->right_sib->getName() == "paramList"){
-				Node* param_list = n->left_child->right_sib->right_sib;
-				Node* param = param_list->left_child;
+			Node* param = n->left_child->right_sib->right_sib;
+			if(param->getName() == "paramList"){
+				param = param->left_child;
+			}
 
-				// Loop through all params
-				while(param){
-					if(param->getName() == "arrayParam"){
-						argList.push_back(llvm::Type::getInt32PtrTy(TheContext));
-						argNames.push_back(param->right_child->getID());
-					}
-					else if(param->getName() == "param"){
-						argList.push_back(llvm::Type::getInt32Ty(TheContext));
-						argNames.push_back(param->right_child->getID());
-					}
-					
-					param = param->right_sib;
+			// Loop through all params
+			while(param){
+				if(param->getName() == "arrayParam"){
+					argList.push_back(llvm::Type::getInt32PtrTy(TheContext));
+					argNames.push_back(param->right_child->getID());
 				}
+				else if(param->getName() == "param"){
+					argList.push_back(llvm::Type::getInt32Ty(TheContext));
+					argNames.push_back(param->right_child->getID());
+				}
+				
+				param = param->right_sib;
 			}
 			
 			llvm::FunctionType *FT = 0;
@@ -260,19 +257,20 @@ void* IRGen::codegen(Node*n, int scope){
 
 			// Allocate our arguments, and insert them into our vars symbol table
 			// Start by clearing the symbol table, in case there's anything in it.
-			std::cout << "clearing scope " << scope+1 << std::endl;
+			std::cout << "clearing scope in funcDec " << scope+1 << std::endl;
 			vars[scope+1].clear();
 
 			auto name = argNames.begin();
 			for(auto &Arg : F->args()){
+				std::cout << "function arg variable declaration: " << *name << " in scope "<< scope+1 << std::endl;
 				llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(F, *name, Arg.getType());
 				Builder.CreateStore(&Arg, Alloca);
-				vars[scope+1][Arg.getName()] = Alloca;
+				vars[scope+1][*name] = Alloca;
 				name++;
 			}
 
 			// OBTAIN THE FUNCTION CONTENT:
-			llvm::Value* funcVal = (llvm::Value*)codegen(n->right_child, scope+1);
+			llvm::Value* funcVal = (llvm::Value*)codegen(n->right_child, scope);
 
 			if (funcVal) {
   				// Validate the generated code, checking for consistency.
@@ -349,7 +347,7 @@ void* IRGen::codegen(Node*n, int scope){
 				codegen(looper, scope);
 				looper = looper->right_sib;
 			}
-			std::cout << "clearing scope " << scope-1 << std::endl;
+			std::cout << "leaving compoundstmt, clearing scope " << scope << std::endl;
 			vars[scope--].clear();
 		}
 				/****************************************************
