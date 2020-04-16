@@ -185,10 +185,13 @@ void* IRGen::codegen(Node*n, int scope){
 				 ****************************************************/
 		else if(n->attributes["name"] == "varDec") {
 			std::string id = n->right_child->getID();
-			// std::cout << "variable declaration: " << id << " in scope "<< scope<< std::endl;
+			std::cout << "variable declaration: " << id << " in scope "<< scope<< std::endl;
 
 			llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
+			std::cout << "Successfully got currfunc" << std::endl;
+
 			llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32Ty(TheContext), nullptr);
+			std::cout << "Adding " << id << " to scope " << scope << std::endl;
 			vars[scope][id] = Alloca;
 		}		
 				/****************************************************
@@ -202,7 +205,7 @@ void* IRGen::codegen(Node*n, int scope){
 
 			llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
 			llvm::Constant* array_size = llvm::ConstantInt::get(TheContext, llvm::APInt(32, size));
-			llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32PtrTy(TheContext), array_size);
+			llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32Ty(TheContext), array_size);
 			vars[scope][id] = Alloca;
 		}	
 				/****************************************************
@@ -436,12 +439,12 @@ void* IRGen::codegen(Node*n, int scope){
 			Builder.CreateCondBr(Condition, LoopBB, PostLoopBB);
 
 			// Insert the loop body
+			CurrFunction->getBasicBlockList().push_back(LoopBB);
 			Builder.SetInsertPoint(LoopBB);
 			llvm::Value* LoopBody = (llvm::Value *)codegen(do_node, scope);
 			Builder.CreateBr(CondBB);
 
-			// Add the new loop BB to our Function
-			CurrFunction->getBasicBlockList().push_back(LoopBB);
+			// Add the post loop BB to our Function
 			CurrFunction->getBasicBlockList().push_back(PostLoopBB);			
 			Builder.SetInsertPoint(PostLoopBB);
 
