@@ -321,9 +321,9 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 			llvm::Value* Alloca;
 			int found_scope = 0;
 			for(int i=scope; i>0; i--){
-				std::cout << "Checking scope " << i << " for variable " << n->getID() << std::endl;
+				// std::cout << "Checking scope " << i << " for variable " << n->getID() << std::endl;
 				if (vars[i].count(n->getID())) {
-					std::cout << "Found " << n->getID() << " in scope " << i << std::endl;
+					// std::cout << "Found " << n->getID() << " in scope " << i << std::endl;
 					found_scope = i;
 					break;
 				}
