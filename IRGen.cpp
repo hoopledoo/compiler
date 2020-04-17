@@ -186,7 +186,8 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 			std::string id = n->right_child->getID();
 
 			if(scope > 0){
-				llvm::Value* Alloca = Builder.CreateAlloca(llvm::Type::getInt32Ty(TheContext), nullptr, id);
+				llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
+				llvm::Value* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32Ty(TheContext));
 				vars[scope][id] = Alloca;
 				return Alloca;
 			}
@@ -205,34 +206,11 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 			// std::cout << "array declaration" << id << "[" << size << "] in scope "<< scope<< std::endl;
 
 			if(scope > 0){
-				llvm::ArrayType* ArrayType = llvm::ArrayType::get(llvm::IntegerType::getInt32Ty(TheContext), size);
-				llvm::Value* Alloca = Builder.CreateAlloca(ArrayType, nullptr, id);
-				vars[scope][id] = Alloca;
-				return Alloca;
-
-				/* From array params -- which works for function variables
-				llvm::Value* Alloca = CreateEntryBlockAlloca(F, *name, Arg.getType());
-				Builder.CreateStore(&Arg, Alloca);
-				vars[scope+1][*name] = Alloca;
-				*/
-
-				/* OLD CODE -- this doesn't currently work
-				llvm::Function *CurrFunction = Builder.GetInsertBlock()->getParent();
+				llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
 				llvm::ArrayType* ArrayType = llvm::ArrayType::get(llvm::IntegerType::getInt32Ty(TheContext), size);
 				llvm::Value* Alloca = CreateEntryBlockAlloca(CurrFunction, id, ArrayType);
-				llvm::Value* StoredVal = Builder.CreateStore(, Alloca);
 				vars[scope][id] = Alloca;
-				return StoredVal;
-				*/
-
-				/* Create Entry Block Alloca
-				static llvm::Value *CreateEntryBlockAlloca(llvm::Function *TheFunction, 
-											const std::string &VarName,
-											llvm::Type* t){
-					llvm::IRBuilder<> TmpB(&TheFunction->getEntryBlock(), TheFunction->getEntryBlock().begin());
-					return TmpB.CreateAlloca(t, nullptr, VarName.c_str());
-				}
-				*/
+				return Alloca;
 			}
 			else{
 				// std::cerr << "Declaring global array" << std::endl;

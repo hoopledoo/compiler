@@ -14,8 +14,7 @@ int main(int paramVar, int paramArray[]){
 
 	b = paramVar;
 	b = paramArray[2];
-
-	/* b = localArray[3]; */
+	/* b = localArray[3];
 
 	/*
 	localArray[0] = localVar;
