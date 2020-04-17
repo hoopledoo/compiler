@@ -1,6 +1,7 @@
 int a;
 int b;
 int array[20];
+int global;
 
 int function(int ar[], int a, int b){
 	int c;
@@ -8,7 +9,11 @@ int function(int ar[], int a, int b){
 	int y;
 	int z;
 
-	ar[0] = 1;
+	ar[0] = 1; /* DOESN'T WORK YET */
+
+	z = global;
+	/* z = array[0]; */
+
 	i = ar[1]; /* WORKS!!! */
 	i = 0;
 	a = 4;

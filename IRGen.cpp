@@ -191,7 +191,7 @@ void* IRGen::codegen(Node*n, int scope){
 				vars[scope][id] = Alloca;
 			}
 			else{
-				std::cerr << "Attempting to declare/add global var" << std::endl;
+				// std::cerr << "Declaring global var" << std::endl;
 				TheModule->getOrInsertGlobal(id, llvm::Type::getInt32Ty(TheContext));
 			}
 		}		
@@ -212,7 +212,7 @@ void* IRGen::codegen(Node*n, int scope){
 				return Alloca;
 			}
 			else{
-				std::cerr << "Attempting to declare/add global array" << std::endl;
+				// std::cerr << "Declaring global array" << std::endl;
 				llvm::ArrayType* ArrayType = llvm::ArrayType::get(llvm::IntegerType::getInt32Ty(TheContext), size);
 				TheModule->getOrInsertGlobal(id, ArrayType);
 			}
@@ -287,10 +287,8 @@ void* IRGen::codegen(Node*n, int scope){
 			// OBTAIN THE FUNCTION CONTENT:
 			llvm::Value* funcVal = (llvm::Value*)codegen(n->right_child, scope);
 
-			if (funcVal) {
-  				// Validate the generated code, checking for consistency.
-  				llvm::verifyFunction(*F);
-			}
+  			// Validate the generated code, checking for consistency.
+  			llvm::verifyFunction(*F);
 
 			return funcVal;
 		}	
@@ -316,8 +314,8 @@ void* IRGen::codegen(Node*n, int scope){
 				}
 			}
 			else {
-				std::cerr << "We can't handle references to global variables yet " << std::endl;
-				//return TheModule->getOrInsertGlobal(n->getID(), llvm::Type::getInt32Ty(TheContext));
+				std::cerr << "Attempting to make use of a global variable " << std::endl;
+				return TheModule->getNamedValue(n->getID());
 			}
 
 			return 0;
