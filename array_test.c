@@ -5,6 +5,13 @@ int returnOne(void){
 	return 1;
 }
 
+int compare(int a, int b){
+	if(a < b) return a;
+
+	if(b==a) return b;
+	else return a;
+}
+
 void function(int paramVar, int paramArray[]){
 	int localVar;
 	int localInt;

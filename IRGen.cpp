@@ -18,9 +18,9 @@ static std::string IR_string;
 // during the semantic analysis
 static std::map<int, std::map<std::string, llvm::Value *>> vars; 
 static std::map<int, std::map<std::string, int>> array_lens;
-
 static std::map<std::string, llvm::Function*> funcs;
-static bool storing = false;
+static llvm::BasicBlock* ReturnBlock = 0;
+static llvm::Value* ReturnValue = 0;
 
 IRGen::IRGen(std::string s){
 	TheModule = llvm::make_unique<llvm::Module> (s + "_module", TheContext);
@@ -261,6 +261,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 			}
 			else{
 				std::cerr << "FATAL ERROR: return type for function neither INT nor VOID - should never see this msg." << std::endl;
+				exit(-1);
 			}
 
 			llvm::Function *F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, id, TheModule.get());
@@ -270,6 +271,24 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 
 			// Create a new basic block to start insertion into.
 			llvm::BasicBlock *BB = llvm::BasicBlock::Create(TheContext, "entry", F);
+			Builder.SetInsertPoint(BB);
+
+			if(rtype == "INT"){
+				// Set up a Return Block
+				ReturnBlock = llvm::BasicBlock::Create(TheContext, "ret");
+				ReturnValue = Builder.CreateAlloca(llvm::Type::getInt32Ty(TheContext), nullptr);
+				Builder.SetInsertPoint(ReturnBlock);
+				llvm::Value* Returning = Builder.CreateLoad(ReturnValue);
+				Builder.CreateRet(Returning);
+
+			}
+			else if(rtype == "VOID"){
+				// Set up a Return Block
+				ReturnBlock = llvm::BasicBlock::Create(TheContext, "ret");
+				Builder.SetInsertPoint(ReturnBlock);
+				Builder.CreateRetVoid();
+			}
+
 			Builder.SetInsertPoint(BB);
 
 			// Allocate our arguments, and insert them into our vars symbol table
@@ -289,6 +308,9 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 
 			// OBTAIN THE FUNCTION CONTENT:
 			llvm::Value* funcVal = (llvm::Value*)codegen(n->right_child, scope);
+			
+			// After building everything else, insert our Return Block
+			F->getBasicBlockList().push_back(ReturnBlock);
 
   			// Validate the generated code, checking for consistency.
   			llvm::verifyFunction(*F);
@@ -461,11 +483,15 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 			// Handle returns with a return value
 			if(n->left_child){
 				// std::cout << "generating return" << std::endl;
-				return Builder.CreateRet((llvm::Value*)codegen(n->left_child, scope));
+				llvm::Value* Result = codegen(n->left_child, scope);
+				Builder.CreateStore(Result, ReturnValue);
+				return Builder.CreateBr(ReturnBlock);
+				//return Builder.CreateRet((llvm::Value*)codegen(n->left_child, scope));
 			}
 			else{
 				// std::cout << "generating return void" << std::endl;
-				return Builder.CreateRetVoid();
+				return Builder.CreateBr(ReturnBlock);
+				//return Builder.CreateRetVoid();
 			}
 		}
 				/****************************************************
