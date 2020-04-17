@@ -16,7 +16,7 @@ static std::string IR_string;
 // the known variables during generation
 // we'll handle it essentially the same as the symbol table used
 // during the semantic analysis
-static std::map<int, std::map<std::string, llvm::AllocaInst *>> vars; 	
+static std::map<int, std::map<std::string, llvm::Value *>> vars; 	
 static std::map<std::string, llvm::Function*> funcs;
 static bool storing = false;
 
@@ -69,7 +69,7 @@ void IRGen::generateIR(Node* root){
 	return;
 }
 
-static llvm::AllocaInst *CreateEntryBlockAlloca(llvm::Function *TheFunction, 
+static llvm::Value *CreateEntryBlockAlloca(llvm::Function *TheFunction, 
 											const std::string &VarName,
 											llvm::Type* t){
 	llvm::IRBuilder<> TmpB(&TheFunction->getEntryBlock(), TheFunction->getEntryBlock().begin());
@@ -79,7 +79,7 @@ static llvm::AllocaInst *CreateEntryBlockAlloca(llvm::Function *TheFunction,
 // Recursive method to generate code for each node
 // This behavior will be defined based on the type
 // of node we are dealing with
-void* IRGen::codegen(Node*n, int scope){
+llvm::Value* IRGen::codegen(Node*n, int scope){
 	llvm::Value* L = 0;
 
 	// Handle the different named nodes
@@ -187,12 +187,13 @@ void* IRGen::codegen(Node*n, int scope){
 
 			if(scope > 0){
 				llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
-				llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32Ty(TheContext));
+				llvm::Value* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32Ty(TheContext));
 				vars[scope][id] = Alloca;
+				return Alloca;
 			}
 			else{
 				// std::cerr << "Declaring global var" << std::endl;
-				TheModule->getOrInsertGlobal(id, llvm::Type::getInt32Ty(TheContext));
+				return TheModule->getOrInsertGlobal(id, llvm::Type::getInt32Ty(TheContext));
 			}
 		}		
 				/****************************************************
@@ -207,14 +208,14 @@ void* IRGen::codegen(Node*n, int scope){
 			if(scope > 0){
 				llvm::Function *CurrFunction = Builder.GetInsertBlock()->getParent();
 				llvm::ArrayType* ArrayType = llvm::ArrayType::get(llvm::IntegerType::getInt32Ty(TheContext), size);
-				llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, ArrayType);
+				llvm::Value* Alloca = CreateEntryBlockAlloca(CurrFunction, id, ArrayType);
 				vars[scope][id] = Alloca;
 				return Alloca;
 			}
 			else{
 				// std::cerr << "Declaring global array" << std::endl;
 				llvm::ArrayType* ArrayType = llvm::ArrayType::get(llvm::IntegerType::getInt32Ty(TheContext), size);
-				TheModule->getOrInsertGlobal(id, ArrayType);
+				return TheModule->getOrInsertGlobal(id, ArrayType);
 			}
 		}	
 				/****************************************************
@@ -278,7 +279,7 @@ void* IRGen::codegen(Node*n, int scope){
 			auto name = argNames.begin();
 			for(auto &Arg : F->args()){
 				// std::cout << "function arg variable declaration: " << *name << " in scope "<< scope+1 << std::endl;
-				llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(F, *name, Arg.getType());
+				llvm::Value* Alloca = CreateEntryBlockAlloca(F, *name, Arg.getType());
 				Builder.CreateStore(&Arg, Alloca);
 				vars[scope+1][*name] = Alloca;
 				name++;
@@ -293,7 +294,7 @@ void* IRGen::codegen(Node*n, int scope){
 			return funcVal;
 		}	
 		else if(n->attributes["name"] == "ID"){
-			llvm::AllocaInst* Alloca;
+			llvm::Value* Alloca;
 			int found_scope = 0;
 			for(int i=scope; i>0; i--){
 				// std::cout << "Checking scope " << i << " for variable " << n->getID() << std::endl;
@@ -327,16 +328,16 @@ void* IRGen::codegen(Node*n, int scope){
 			// std::cout << "generating '='" << std::endl;
 
 			/* Handle assignment directly to variable */
-			llvm::AllocaInst* Alloca = 0;
+			llvm::Value* Alloca = 0;
 			std::string id;
 			if(n->left_child->getName() == "ID"){
 				storing = true;
-				Alloca = (llvm::AllocaInst*)codegen(n->left_child, scope);
+				Alloca = codegen(n->left_child, scope);
 			}	
 			/* Handle assignment to an array location */
 			else if(n->left_child->getName() == "varIndex"){
 				storing = true;
-				Alloca = (llvm::AllocaInst*)codegen(n->left_child, scope);
+				Alloca = codegen(n->left_child, scope);
 			}
 			storing = false;
 
@@ -351,7 +352,7 @@ void* IRGen::codegen(Node*n, int scope){
 				 ****************************************************/
 		else if(n->attributes["name"] == "varIndex"){
 			std::cout << "Handling varIndex" << std::endl;
-			llvm::AllocaInst* Alloca = 0;
+			llvm::Value* Alloca = 0;
 			int found_scope = 0;
 			llvm::Value* index = (llvm::Value *)codegen(n->right_child, scope);
 			printValue(index);
@@ -370,7 +371,7 @@ void* IRGen::codegen(Node*n, int scope){
 			if (found_scope > 0){
 				Alloca = vars[found_scope][id];
 				if(storing){
-					std::cerr << "Array storage is not yet implemented" << std::endl;
+					std::cerr << "Array storage into local array not yet implemented" << std::endl;
 					/*
 					std::cerr << "Attempting storage into local array" << std::endl;
 					
@@ -406,8 +407,23 @@ void* IRGen::codegen(Node*n, int scope){
 				}
 			}
 			else{
-				std::cerr << "We can't handle references to global arrays yet " << std::endl;
+				if(storing){
+					std::cerr << "Array storage into global array not yet implemented" << std::endl;
+				}
+				else{
+					std::cerr << "Attemping to handle global array" << std::endl;
+					llvm::Value* ArrayAddr = TheModule->getNamedValue(id);
 
+					// Push the index back into our ArrayLocVec
+					std::vector<llvm::Value*> ArrayLocVec;
+					llvm::Value* ConstZero = llvm::ConstantInt::get(TheContext, llvm::APInt(32, n->val, true));
+					ArrayLocVec.push_back(ConstZero);
+					ArrayLocVec.push_back(index);
+					llvm::ArrayRef<llvm::Value*> ArrayLoc(ArrayLocVec);
+
+					llvm::Value* DesiredLocation = Builder.CreateGEP(ArrayAddr, ArrayLocVec);
+					return Builder.CreateLoad(DesiredLocation);					
+				}
 			}			
 		}
 				/****************************************************
