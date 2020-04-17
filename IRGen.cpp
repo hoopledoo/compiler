@@ -16,7 +16,9 @@ static std::string IR_string;
 // the known variables during generation
 // we'll handle it essentially the same as the symbol table used
 // during the semantic analysis
-static std::map<int, std::map<std::string, llvm::Value *>> vars; 	
+static std::map<int, std::map<std::string, llvm::Value *>> vars; 
+static std::map<int, std::map<std::string, int>> array_lens;
+
 static std::map<std::string, llvm::Function*> funcs;
 static bool storing = false;
 
@@ -200,7 +202,6 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 				 *			handle array variable declaration 		*
 				 ****************************************************/
 		else if(n->attributes["name"] == "arrayVarDec") {
-			/* TODO: Fix this, at the moment we've got pointers to pointers... */
 			std::string id = n->left_child->right_sib->getID();
 			int size = n->right_child->val;
 			// std::cout << "array declaration" << id << "[" << size << "] in scope "<< scope<< std::endl;
@@ -210,6 +211,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 				llvm::ArrayType* ArrayType = llvm::ArrayType::get(llvm::IntegerType::getInt32Ty(TheContext), size);
 				llvm::Value* Alloca = CreateEntryBlockAlloca(CurrFunction, id, ArrayType);
 				vars[scope][id] = Alloca;
+				array_lens[scope][id] = size;
 				return Alloca;
 			}
 			else{
@@ -239,7 +241,6 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 			// Loop through all params
 			while(param){
 				if(param->getName() == "arrayParam"){
-					/* TODO: Fix this, at the moment we've got pointers to pointers... */
 					argList.push_back(llvm::Type::getInt32PtrTy(TheContext));
 					argNames.push_back(param->right_child->getID());
 				}
@@ -275,6 +276,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 			// Start by clearing the symbol table, in case there's anything in it.
 			// std::cout << "clearing scope in funcDec " << scope+1 << std::endl;
 			vars[scope+1].clear();
+			array_lens[scope+1].clear();
 
 			auto name = argNames.begin();
 			for(auto &Arg : F->args()){
@@ -315,7 +317,6 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 				}
 			}
 			else {
-				std::cerr << "Attempting to make use of a global variable " << std::endl;
 				llvm::Value* GlobalVar = TheModule->getNamedValue(n->getID());
 				return Builder.CreateLoad(GlobalVar);
 			}
@@ -357,6 +358,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 			int found_scope = 0;
 			llvm::Value* index = (llvm::Value *)codegen(n->right_child, scope);
 			printValue(index);
+			std::cout << std::endl;
 			std::string id = n->left_child->getID();
 			// std::cout << "handling array index " << id << "[" << indx << "]" << std::endl;
 			for(int i=scope; i>=0; i--){
@@ -369,62 +371,66 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 			}
 			std::cout << "Determined scope for "  << id << ": " << found_scope << std::endl;
 
+			// Handle Non-globals
 			if (found_scope > 0){
 				Alloca = vars[found_scope][id];
-				if(storing){
-					std::cerr << "Array storage into local array not yet implemented" << std::endl;
-					/*
-					std::cerr << "Attempting storage into local array" << std::endl;
-					
-					// Push the index back into our ArrayLocVec
-					std::vector<llvm::Value*> ArrayLocVec;
-					ArrayLocVec.push_back(index);
-					llvm::ArrayRef<llvm::Value*> ArrayLoc(ArrayLocVec);
 
-					// Load up the address of the Array
-					llvm::Value* ArrayAddr = Builder.CreateLoad(Alloca);
-					
-					// llvm::Value* StoreValue = Builder.CreateGEP(llvm::Type::getInt32Ty(TheContext), ArrayAddr, ArrayLoc);
-					llvm::Value* StoreValue = Builder.CreateGEP(ArrayAddr, ArrayLoc);
-					return StoreValue;
-					*/
-					
-				}
-				else{
-					std::cerr << "Attempting to handle reference to local array" << std::endl;
+				// Here, we effectively just need to get the pointer to the storage location
+				std::vector<llvm::Value*> ArrayLocVec;
+				llvm::Value* TargetAddr = 0;
 
-					// Push the index back into our ArrayLocVec
-					std::vector<llvm::Value*> ArrayLocVec;
-					ArrayLocVec.push_back(index);
-					llvm::ArrayRef<llvm::Value*> ArrayLoc(ArrayLocVec);
+				// Handle Local Array GetElementPtr
+				if(array_lens.count(found_scope) and array_lens[found_scope].count(id)){
 
-					// Load up the address of the Array
-					llvm::Value* ArrayAddr = Builder.CreateLoad(Alloca);
-					
-					//llvm::Value* LoadFrom = Builder.CreateGEP(llvm::Type::getInt32Ty(TheContext), ArrayAddr, ArrayLoc);
-					llvm::Value* LoadFrom = Builder.CreateGEP(ArrayAddr, ArrayLoc);
-					llvm::Value* LoadValue = Builder.CreateLoad(LoadFrom);
-					return LoadValue;
-				}
-			}
-			else{
-				if(storing){
-					std::cerr << "Array storage into global array not yet implemented" << std::endl;
-				}
-				else{
-					std::cerr << "Attemping to handle global array" << std::endl;
-					llvm::Value* ArrayAddr = TheModule->getNamedValue(id);
-
-					// Push the index back into our ArrayLocVec
-					std::vector<llvm::Value*> ArrayLocVec;
-					llvm::Value* ConstZero = llvm::ConstantInt::get(TheContext, llvm::APInt(32, n->val, true));
+					llvm::Value* ConstZero = llvm::ConstantInt::get(TheContext, llvm::APInt(32, 0, true));
 					ArrayLocVec.push_back(ConstZero);
 					ArrayLocVec.push_back(index);
 					llvm::ArrayRef<llvm::Value*> ArrayLoc(ArrayLocVec);
 
-					llvm::Value* DesiredLocation = Builder.CreateGEP(ArrayAddr, ArrayLocVec);
-					return Builder.CreateLoad(DesiredLocation);					
+					TargetAddr = Builder.CreateGEP(Alloca, ArrayLoc);
 				}
+				// Handle Param Passed as Ptr with GetElementPtr
+				else{
+					// Load up the address of the Array
+					llvm::Value* ArrayAddr = Builder.CreateLoad(Alloca);
+
+					// Push the index back into our ArrayLocVec
+					ArrayLocVec.push_back(index);
+					llvm::ArrayRef<llvm::Value*> ArrayLoc(ArrayLocVec);
+
+					//llvm::Value* LoadFrom = Builder.CreateGEP(llvm::Type::getInt32Ty(TheContext), ArrayAddr, ArrayLoc);
+					TargetAddr = Builder.CreateGEP(ArrayAddr, ArrayLoc);
+				}
+
+				// Return the Address we just found, if we're storing the value
+				if(storing){
+					return TargetAddr;
+				}
+				// Otherwise we're using the value, and it needs to be loaded
+				else{
+					return Builder.CreateLoad(TargetAddr);
+				}
+			}
+			// Handle Globals
+			else{
+				llvm::Value* ArrayAddr = TheModule->getNamedValue(id);
+
+				// Push the index back into our ArrayLocVec
+				std::vector<llvm::Value*> ArrayLocVec;
+				llvm::Value* ConstZero = llvm::ConstantInt::get(TheContext, llvm::APInt(32, 0, true));
+				ArrayLocVec.push_back(ConstZero);
+				ArrayLocVec.push_back(index);
+				llvm::ArrayRef<llvm::Value*> ArrayLoc(ArrayLocVec);
+
+				llvm::Value* DesiredLocation = Builder.CreateGEP(ArrayAddr, ArrayLocVec);
+
+				if(storing){
+					return DesiredLocation;
+				}
+				else{
+					return Builder.CreateLoad(DesiredLocation);	
+				}
+
 			}			
 		}
 				/****************************************************
@@ -572,7 +578,9 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 				looper = looper->right_sib;
 			}
 			// std::cout << "leaving compoundstmt, clearing scope " << scope << std::endl;
-			vars[scope--].clear();
+			vars[scope-1].clear();
+			array_lens[scope-1].clear();
+			scope--;
 		}
 				/****************************************************
 				 *			handle nodes that recurse 				*
