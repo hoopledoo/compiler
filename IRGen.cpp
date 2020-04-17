@@ -63,7 +63,7 @@ void IRGen::generateIR(Node* root){
 	funcs["output"] = outF;
 
 	// Generate the code for the entire module
-	llvm::Value* val = (llvm::Value*)codegen(root);
+	llvm::Value* val = (llvm::Value*)codegen(root, 0);
 
 	setIRString();
 	// std::cout << IR_string << std::endl;
@@ -81,7 +81,7 @@ static llvm::Value *CreateEntryBlockAlloca(llvm::Function *TheFunction,
 // Recursive method to generate code for each node
 // This behavior will be defined based on the type
 // of node we are dealing with
-llvm::Value* IRGen::codegen(Node*n, int scope){
+llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 	llvm::Value* L = 0;
 
 	// Handle the different named nodes
@@ -333,15 +333,12 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 			llvm::Value* Alloca = 0;
 			std::string id;
 			if(n->left_child->getName() == "ID"){
-				storing = true;
-				Alloca = codegen(n->left_child, scope);
+				Alloca = codegen(n->left_child, scope, true);
 			}	
 			/* Handle assignment to an array location */
 			else if(n->left_child->getName() == "varIndex"){
-				storing = true;
-				Alloca = codegen(n->left_child, scope);
+				Alloca = codegen(n->left_child, scope, true);
 			}
-			storing = false;
 
 			llvm::Value* NextVar = 0;
 			NextVar = (llvm::Value*)codegen(n->right_child, scope);
@@ -448,7 +445,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 			}
 
 			while(arg){
-				llvm::Value* result = (llvm::Value* )codegen(arg,scope);
+				llvm::Value* result = (llvm::Value* )codegen(arg, scope);
 				// printValue(result);
 				// std::cout << std::endl;
 				passingArgs.push_back(result);

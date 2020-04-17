@@ -18,7 +18,7 @@ public:
 	virtual ~IRGen(){};
 
 	void generateIR(Node* n);
-	llvm::Value* codegen(Node* n, int scope=0);
+	llvm::Value* codegen(Node* n, int scope=0, bool storing=false);
 	std::string getIRString();
 };
 

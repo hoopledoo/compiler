@@ -1,6 +1,10 @@
 int globalVar;
 int globalArray[10];
 
+int returnOne(void){
+	return 1;
+}
+
 void function(int paramVar, int paramArray[]){
 	int localVar;
 	int localInt;
@@ -8,6 +12,7 @@ void function(int paramVar, int paramArray[]){
 
 	localVar = ((2*2)+4)/(3-2);
 	localInt= 1;
+	localInt = returnOne();
 
 	localInt= globalVar;
 	localInt= globalArray[1];
@@ -24,15 +29,15 @@ void function(int paramVar, int paramArray[]){
 	paramArray[0] = 2;
 	globalArray[0] = 3;
 
-	/*
+	
 	localArray[0] = localVar;
 	localArray[1] = globalVar;
 	globalArray[0] = localVar;
 	globalArray[1] = globalVar;
-	*/
+	
 
-	/*
+	
 	localArray[4] = globalArray[4];
 	globalArray[5] = localArray[5];
-	*/
+	
 }
