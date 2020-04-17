@@ -301,7 +301,6 @@ void* IRGen::codegen(Node*n, int scope){
 				if (vars[i].count(n->getID())) {
 					// std::cout << "Found " << n->getID() << " in scope " << i << std::endl;
 					found_scope = i;
-					
 					break;
 				}
 			}
@@ -352,27 +351,56 @@ void* IRGen::codegen(Node*n, int scope){
 				 *			handle var Index reference				*
 				 ****************************************************/
 		else if(n->attributes["name"] == "varIndex"){
-			/* TODO: Fix this, at the moment we've got pointers to pointers... */
-
-			llvm::AllocaInst* ptr = 0;
-			int scope_found = 0;
-			int indx = n->right_child->val;
+			std::cout << "Handling varIndex" << std::endl;
+			llvm::AllocaInst* Alloca = 0;
+			int found_scope = 0;
+			llvm::Value* index = (llvm::Value *)codegen(n->right_child, scope);
+			printValue(index);
 			std::string id = n->left_child->getID();
 			// std::cout << "handling array index " << id << "[" << indx << "]" << std::endl;
 			for(int i=scope; i>=0; i--){
 				// std::cout << "Checking scope " << i << " for variable " << id << std::endl;
 				if (vars[i].count(id)) {
 					// std::cout << "ptr found in scope " << i << std::endl;
-					scope_found = i;
+					found_scope = i;
 					break;
 				}
 			}
-			if (scope_found > 0){
+			std::cout << "Determined scope for "  << id << ": " << found_scope << std::endl;
 
+			if (found_scope > 0){
+				Alloca = vars[found_scope][id];
 				if(storing){
-					std::cerr << "We can't handle storing into local arrays yet" << std::endl;
-				}else{
-					std::cerr << "We can't handle references to local arrays yet" << std::endl;
+					std::cerr << "Storage into local arrays not implemented yet" << std::endl;
+					/*
+					// Push the index back into our ArrayLocVec
+					std::vector<llvm::Value*> ArrayLocVec;
+					ArrayLocVec.push_back(index);
+					llvm::ArrayRef<llvm::Value*> ArrayLoc(ArrayLocVec);
+
+					// Load up the address of the Array
+					llvm::Value* ArrayAddr = Builder.CreateLoad(Alloca);
+					
+					// llvm::Value* StoreValue = Builder.CreateGEP(llvm::Type::getInt32Ty(TheContext), ArrayAddr, ArrayLoc);
+					llvm::Value* StoreValue = Builder.CreateGEP(ArrayAddr, ArrayLoc);
+					return StoreValue;
+					*/
+				}
+				else{
+					std::cerr << "Attempting to handle reference to local array" << std::endl;
+
+					// Push the index back into our ArrayLocVec
+					std::vector<llvm::Value*> ArrayLocVec;
+					ArrayLocVec.push_back(index);
+					llvm::ArrayRef<llvm::Value*> ArrayLoc(ArrayLocVec);
+
+					// Load up the address of the Array
+					llvm::Value* ArrayAddr = Builder.CreateLoad(Alloca);
+					
+					//llvm::Value* LoadFrom = Builder.CreateGEP(llvm::Type::getInt32Ty(TheContext), ArrayAddr, ArrayLoc);
+					llvm::Value* LoadFrom = Builder.CreateGEP(ArrayAddr, ArrayLoc);
+					llvm::Value* LoadValue = Builder.CreateLoad(LoadFrom);
+					return LoadValue;
 				}
 			}
 			else{

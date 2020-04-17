@@ -8,9 +8,12 @@ int function(int ar[], int a, int b){
 	int y;
 	int z;
 
+	i = ar[1]; /* WORKS!!! */
 	i = 0;
 	a = 4;
 	b = 5;
+
+	i = ar[a+b]; /* DOESN'T WORK! */
 	c = 0;
 
 	if(a==(b+c)) c = a+b;
@@ -23,8 +26,9 @@ int function(int ar[], int a, int b){
 int otherfunc(void){
 	int localArray[10];
 	int a;
-
+	
 	localArray[0] = 1;
+	localArray[1] = 1 * 1 + 1;
 	{
 		int a;
 		{
