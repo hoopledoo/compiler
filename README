@@ -8,7 +8,7 @@ Flex code is in scanner.l
 The remainder of the code for managing the AST and generating IR can be found in
 
 - IRGen.cpp & IRGen.h 							(primarily IR generation functionality)
-- driver.cpp & drvier.h 						(main driver to run everything)
+- driver.cpp & driver.h 						(main driver to run everything)
 - Node.cpp & Node.h								(Nodes used as a part of the AST)
 - input.c & input.ll & output.c & output.ll		(the intention of these files was to llvm-link them	
 												together with the programs to test the execution. Unfortunately
@@ -18,189 +18,30 @@ I built everything on
 	Linux  Ubuntu 18.04, x86_64
 
 I created a few additional files to test thing out:
-> test.c- 		(primarily used while adding new features to IR generation)
-> simple.program & error.program 	(primarily used when testing semantic analysis)
+> array_test.c  	(I compiled this with clang into IR to compare and figure out how to implement arrays)
+> test.c- 			(primarily used while adding new features to IR generation)
+> simple.program 	(primarily used while adding new features to IR generation)
+> error.program 	(primarily used when testing semantic analysis)
 
 additionally included are the provided input files (gcd.C- and sort.C-)
 
-The final compiled executable is "compiler"
+This program has been tested and works on the two provided input files
+- gcd.C- and sort.C-
 
-@ == global memory address
-% == local memory address
+To run, simply use
 
-But struct type definitions say they're local, but they aren't inside a local scope
--- quite interesting (probably local to the file)
+./compiler <filename>
 
-Runtime Environments:
--- Original theory of computation and compilation was developed by Alonzo Church and Alan Turing (Church's student) with 
-some collaboration with Haskell Curry in the 1930s
-	- it was a mathematical concept
--- Alonzo Church and Haskell Curry developed the functional version of computation and Lambda Calculus (functional languages)
--- Turing developed the stored data version of computation and the Turing Machine
+During the processing of the file it will print out:
+- The Symbol Table
+- The AST
+- The IR
 
-The Turing Machine
--- needs input source
--- needs ability to output data
--- needs a way to control a sequence of instructions, with 2 special characteristics
-	- must be able to do a logical test  (to choose between two next instructions)
-	- must be able to jump and go somewhere else in the code
+It will also write the IR to <filename>.ll
 
-This theory was taken by Von Neuman in the US, and folks at Harvard and Princeton
-- and people in England @ Bletchly park
-	--- developed computer hardware with huge systems using relays 
+This should incorporate the portions that were lacking on my previous submission:
+- Global Variable Support
+- Array Support
+- Propper Handling of Return Values
 
-It was all very secretive, being used in WWII
-
-Key pieces of Turing Machine
-- program code block
-- program counter to keep track where you were
-- registers
-- jump somewhere in counter list
-- store and load/retrieve data
-
-Continuing through history
-- Turing Machine led to machine languages for computers (you were programming computer using
-and externally available list of instructions - the original ones were pegboards)
-- Assembly Languages quickly followed allowing for nearly direct conversion between assembly and machine code
-- John W. Backus led a team at IBM to develop the first commercial high-level computer language (FORTRAN == Formula Translator)	
-		- FORTRAN emphasized arrays and global common blocks
-- Lambda Calculus was eventually embodied as the LISP (List Processor) langauge by John McCarthy at MIT. Emphasized funcions
-
-Navy Team led by Admiral Grace Hopper, developed COBOL which stood for COmmon Business Oriented Lanugage (COBOL)
-emphasized records (structures) and an English like syntax --- Admiral Hopper was an impressive woman.
-
-1960 -- FORTRAN was the major Language (in scientific community), COBOL (business community), LISP (academic community)
-
-By Dec. 1958, the first international conference on computer languages was held in Zuerich Switzerland,
--- prepared a prelim report on international algorithmic language
-
-Met again in Jan 1960, produced the Report on Algorithmic Language ALGOL 60. First language to use
-Backus Naur Form. It also embodied Structured Programming and Recursion.
-
-Edsger W. Dijkstra, w/ the help of a colleague under the guidance of Adriaan van Wijngaarden developed
-the first version of the ALGOL language compiler. Called it X1 ALGOL 60. It was recursive and stack-based
-
-Kinds of Programming Langauges
--- FORTRAN and COBOL were static languages (non-recursive) originally with lots of global data
--- LISP was originally a fully dynamic language based on lambda functions
--- ALGOL 60 was a stack-based langauge. It was recursive and has had major influence on every programming language in use today.
-
-	Recommended getting a hold of Dijkstras academic report on recursive programming
-	- also the ALGOL 60 report.
-
-3 Kinds of Runtime Environments
-- Static language were handled by static runtim environments
-- Fully dynamic languages are handled by fully dynamic runtime environments
-- Stack based languages are dynamic stack based runtime environments
-
-Static Runtime Environment
-- only 2 parts: the code region and the data region
-
-------------
-	Code
------------		also contains program counter and registers
-	Data
-------------
-
-Global data stored in data area. Code and local variables were stored in the code area.
-- Every subroutine had its own list of arguments with designated storage areas and a place for a return address
-within its code area
-- Every local variable had its data area in the code area
-
-To call a subroutine, data values to be used as arguments would be copied into the argument storage locations. Then
-the return address would be copied to a location inside the subroutine being called.
-Finally, the control was transferred to the subroutine.
-
-When it was time to return, control would be transferred to the return address, and the
-arguments and any return value would then be copied out of the argument storage location
-in the called subroutine back into their storage area in the calling routine.
-
-You could only every call a function once in one call tree. Because the you'd lose the return address
--- SUCKS
-
-Fully Dynamic Runtime Environment
-- functions can be handled as first class data types, which means that a temporary variable
-can hold a lambda function with an argument list (like the spreadsheet). The functions may be executed
-or passed as an argument to another function.
-- You do everything by function pointers
-- Everything associated with dynamic data
-- Everything is stored in the heap
-- All dynamic data being put into the heap must have space allocated for them.
-- Data elements must be handled indirectly using pointers.
-- When no longer needed, the space allocated for the data item should be freed to allow
-some other data to use that memory space.
-
-	--- LISP was the first programming language with garbage collection. 
-	Got a bad reputation quickly, especially as it relates to real-time systems
-
-- Minimally, the Heap must have a pointer to the Top of the Heap and a pointer to the First Free of the Freed List. 
-The data areas in the Freed List must know the Next item in the Freed List and their own size. If you dont
-coallesce data area, you get external fragmentation
-
-Fully Dynamic Runtime Environment
-
----------
-   Heap 	<- The heap can grow         program counter, local registers, freed list, top of heap
----------
-   Data 
-----------
-   Code
-----------
-
-Many flavors of fully dynamic runtime environments, which have special issues. Most notably:
-- double allocated data area (give the same data space to two different things)
-- doubly freed data areas
-- loss of reference (called memory leaks)
-- use of dead references
-( Louden Ch. 7.4 has further description and listing of problems )
-
-The Allocator data structure can help in Dynamic Environments. 
-- has a block of memory from the heap set aside for handling
-the allocation and freeing of data areas which are all of the same size.
-- using several allocators for different sizes can prevent some fragmentations
-
-Dynamic Stack Based Runtime Environment
--- All modern programming languages (even current version of those we talked about) 
-use a stack-based runtime environment, and almost all use a dynamic heap
--- THE STACK
-- stack of activation records, one for each function call. if a function is called recursively,
-it gets an activation record for each call
-- function arguments, return value, and return address are placed in the activation records
--- activation records for different functions start out with different sizes
-- Functions store local values on the stack, which means these activation records can increase and decrease in size!
-
-Given all this, YOU MUST HAVE:
-- frame pointer
-- stack pointer
-- return address
-
-^^^ these are the 3 most important bookkeeping elements of an Activation Record
-
-Frame Pointer -- everything above it is associated only with the current function, and will be popped off
-on return. The frame pointer on teh stack points to the Frame Pointer of the Activation Record of the calling routine.
-
-A Frame Pointer is also kept in a register for use on the return. All of a function's local data
-on the stack is found using an offset from a Frame Pointer kept in a register
-
-Stack Pointer -- located in a register, points to the top of the stack. When the current function declares
-new local variables, they are added to the top of the stack - stack pointer is incremented by the size of local data allocated
-
-When the current function reaches the end of a scope and frees the memory associated with the local varaibles, the
-Stack Pointer is decremented by the size of all the local data areas freed.
-
-Return Value -- allocated in the calling routines Activation Record (incrementing the stack pointer)
-the Return Address is placed in the next data area pointed to by the Stack Pointer
-
-The next area to be filled is the value of teh Frame Pointer in the register. The Frame Pointer
-in the register takes the value of the Stack Pointer, and then the Stack Pointer is incremented
-(some systems do this in one instruction)
-
-Arguments are copied into the function's local data area, incrementing the stack pointer and then passes
-control to the new function
-
-We know this stuff!
-
-^				  <- stack pointer
-|
-|  frame pointer  <- frame pointer
-|  return address
+It should also have fewer bugs than the previous submission
