@@ -299,9 +299,9 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 			llvm::Value* Alloca;
 			int found_scope = 0;
 			for(int i=scope; i>0; i--){
-				// std::cout << "Checking scope " << i << " for variable " << n->getID() << std::endl;
+				std::cout << "Checking scope " << i << " for variable " << n->getID() << std::endl;
 				if (vars[i].count(n->getID())) {
-					// std::cout << "Found " << n->getID() << " in scope " << i << std::endl;
+					std::cout << "Found " << n->getID() << " in scope " << i << std::endl;
 					found_scope = i;
 					break;
 				}
@@ -353,12 +353,12 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 				 *			handle var Index reference				*
 				 ****************************************************/
 		else if(n->attributes["name"] == "varIndex"){
-			std::cout << "Handling varIndex" << std::endl;
+			// std::cout << "Handling varIndex" << std::endl;
 			llvm::Value* Alloca = 0;
 			int found_scope = 0;
 			llvm::Value* index = (llvm::Value *)codegen(n->right_child, scope);
-			printValue(index);
-			std::cout << std::endl;
+			// printValue(index);
+			// std::cout << std::endl;
 			std::string id = n->left_child->getID();
 			// std::cout << "handling array index " << id << "[" << indx << "]" << std::endl;
 			for(int i=scope; i>=0; i--){
@@ -369,7 +369,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 					break;
 				}
 			}
-			std::cout << "Determined scope for "  << id << ": " << found_scope << std::endl;
+			// std::cout << "Determined scope for "  << id << ": " << found_scope << std::endl;
 
 			// Handle Non-globals
 			if (found_scope > 0){
@@ -578,9 +578,9 @@ llvm::Value* IRGen::codegen(Node*n, int scope){
 				looper = looper->right_sib;
 			}
 			// std::cout << "leaving compoundstmt, clearing scope " << scope << std::endl;
-			vars[scope-1].clear();
-			array_lens[scope-1].clear();
-			scope--;
+			vars[scope].clear();
+			array_lens[scope].clear();
+			//scope--;
 		}
 				/****************************************************
 				 *			handle nodes that recurse 				*
