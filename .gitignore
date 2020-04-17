@@ -1,2 +1,5 @@
 # Ignore intermediate .o files
 *.o
+
+# Ignore .ll files
+*.ll

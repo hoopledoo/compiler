@@ -1,15 +1,21 @@
 int globalVar;
 int globalArray[10];
 
-int main(void){
+int main(int paramVar, int paramArray[]){
 	int localVar;
 	int b;
 	int localArray[10];
 
 	localVar = ((2*2)+4)/(3-2);
 	b = 1;
+
+	b = globalVar;
 	b = globalArray[1];
-	/* b = localArray[2];
+
+	b = paramVar;
+	b = paramArray[2];
+
+	/* b = localArray[3]; */
 
 	/*
 	localArray[0] = localVar;
