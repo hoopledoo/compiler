@@ -191,8 +191,8 @@ void* IRGen::codegen(Node*n, int scope){
 				vars[scope][id] = Alloca;
 			}
 			else{
-				std::cerr << "We can't handle global variable declarations yet" << std::endl;
-				//TheModule->getOrInsertGlobal(id, llvm::Type::getInt32Ty(TheContext));
+				std::cerr << "Attempting to declare/add global var" << std::endl;
+				TheModule->getOrInsertGlobal(id, llvm::Type::getInt32Ty(TheContext));
 			}
 		}		
 				/****************************************************
@@ -212,8 +212,9 @@ void* IRGen::codegen(Node*n, int scope){
 				return Alloca;
 			}
 			else{
-				std::cerr << "We can't handle global arrays declarations yet " << std::endl;
-				// TheModule->getOrInsertGlobal(id, llvm::ArrayType::get(llvm::Type::getInt32Ty(TheContext), size));
+				std::cerr << "Attempting to declare/add global array" << std::endl;
+				llvm::ArrayType* ArrayType = llvm::ArrayType::get(llvm::IntegerType::getInt32Ty(TheContext), size);
+				TheModule->getOrInsertGlobal(id, ArrayType);
 			}
 		}	
 				/****************************************************
@@ -371,8 +372,10 @@ void* IRGen::codegen(Node*n, int scope){
 			if (found_scope > 0){
 				Alloca = vars[found_scope][id];
 				if(storing){
-					std::cerr << "Storage into local arrays not implemented yet" << std::endl;
+					std::cerr << "Array storage is not yet implemented" << std::endl;
 					/*
+					std::cerr << "Attempting storage into local array" << std::endl;
+					
 					// Push the index back into our ArrayLocVec
 					std::vector<llvm::Value*> ArrayLocVec;
 					ArrayLocVec.push_back(index);
@@ -385,6 +388,7 @@ void* IRGen::codegen(Node*n, int scope){
 					llvm::Value* StoreValue = Builder.CreateGEP(ArrayAddr, ArrayLoc);
 					return StoreValue;
 					*/
+					
 				}
 				else{
 					std::cerr << "Attempting to handle reference to local array" << std::endl;
