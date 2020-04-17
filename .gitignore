@@ -3,3 +3,10 @@
 
 # Ignore .ll files
 *.ll
+
+# Ignore generated files
+compiler
+parser.tab.cpp
+parser.tab.hpp
+scanner.c
+wolf_tyler_compiler.zip
