@@ -71,10 +71,9 @@ void IRGen::generateIR(Node* root){
 
 static llvm::AllocaInst *CreateEntryBlockAlloca(llvm::Function *TheFunction, 
 											const std::string &VarName,
-											llvm::Type* t,
-											llvm::Value* size){
+											llvm::Type* t){
 	llvm::IRBuilder<> TmpB(&TheFunction->getEntryBlock(), TheFunction->getEntryBlock().begin());
-	return TmpB.CreateAlloca(t, size, VarName.c_str());
+	return TmpB.CreateAlloca(t, nullptr, VarName.c_str());
 }
 
 // Recursive method to generate code for each node
@@ -188,11 +187,12 @@ void* IRGen::codegen(Node*n, int scope){
 
 			if(scope > 0){
 				llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
-				llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32Ty(TheContext), nullptr);
+				llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32Ty(TheContext));
 				vars[scope][id] = Alloca;
 			}
 			else{
-				TheModule->getOrInsertGlobal(id, llvm::Type::getInt32Ty(TheContext));
+				std::cerr << "We can't handle global variable declarations yet" << std::endl;
+				//TheModule->getOrInsertGlobal(id, llvm::Type::getInt32Ty(TheContext));
 			}
 		}		
 				/****************************************************
@@ -204,14 +204,16 @@ void* IRGen::codegen(Node*n, int scope){
 			int size = n->right_child->val;
 			// std::cout << "array declaration" << id << "[" << size << "] in scope "<< scope<< std::endl;
 
-			if(scope >0){
-				llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
-				llvm::Constant* array_size = llvm::ConstantInt::get(TheContext, llvm::APInt(32, size));
-				llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, llvm::Type::getInt32Ty(TheContext), array_size);
+			if(scope > 0){
+				llvm::Function *CurrFunction = Builder.GetInsertBlock()->getParent();
+				llvm::ArrayType* ArrayType = llvm::ArrayType::get(llvm::IntegerType::getInt32Ty(TheContext), size);
+				llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(CurrFunction, id, ArrayType);
 				vars[scope][id] = Alloca;
+				return Alloca;
 			}
 			else{
-				TheModule->getOrInsertGlobal(id, llvm::ArrayType::get(llvm::Type::getInt32Ty(TheContext), size));
+				std::cerr << "We can't handle global arrays declarations yet " << std::endl;
+				// TheModule->getOrInsertGlobal(id, llvm::ArrayType::get(llvm::Type::getInt32Ty(TheContext), size));
 			}
 		}	
 				/****************************************************
@@ -224,7 +226,7 @@ void* IRGen::codegen(Node*n, int scope){
 
 			std::string rtype = n->left_child->getName();
 			std::string id = n->left_child->right_sib->getID();
-			// std::cout << "\n\nfunction declaration for " << id << " in scope " << scope << std::endl;
+			std::cout << "\n\nfunction declaration for " << id << " in scope " << scope << std::endl;
 			int num_params = 0;
 			
 			Node* param = n->left_child->right_sib->right_sib;
@@ -275,7 +277,7 @@ void* IRGen::codegen(Node*n, int scope){
 			auto name = argNames.begin();
 			for(auto &Arg : F->args()){
 				// std::cout << "function arg variable declaration: " << *name << " in scope "<< scope+1 << std::endl;
-				llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(F, *name, Arg.getType(), nullptr);
+				llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(F, *name, Arg.getType());
 				Builder.CreateStore(&Arg, Alloca);
 				vars[scope+1][*name] = Alloca;
 				name++;
@@ -304,15 +306,20 @@ void* IRGen::codegen(Node*n, int scope){
 				}
 			}
 
-			if(found_scope > 0) Alloca = vars[found_scope][n->getID()];
-			else 	return TheModule->getOrInsertGlobal(n->getID(), llvm::Type::getInt32Ty(TheContext));
+			if(found_scope > 0) {
+				Alloca = vars[found_scope][n->getID()];
+				if(storing){
+					return Alloca;
+				}
+				else{
+					return Builder.CreateLoad(Alloca);
+				}
+			}
+			else {
+				std::cerr << "We can't handle references to global variables yet " << std::endl;
+				//return TheModule->getOrInsertGlobal(n->getID(), llvm::Type::getInt32Ty(TheContext));
+			}
 
-			if(storing){
-				return Alloca;
-			}
-			else{
-				return Builder.CreateLoad(Alloca);
-			}
 			return 0;
 		}
 				/****************************************************
@@ -326,38 +333,12 @@ void* IRGen::codegen(Node*n, int scope){
 			std::string id;
 			if(n->left_child->getName() == "ID"){
 				storing = true;
-				int scope_found = -1;
-				id = n->left_child->getID();
-
-				for(int i=scope; i>=0; i--){
-					if(not vars[i].empty() and vars[i].count(id)){
-						scope_found = i;
-						break;
-					}
-				}
-
-				// Get the memory reference
-				Alloca = (llvm::AllocaInst*)codegen(n->left_child, scope_found);
+				Alloca = (llvm::AllocaInst*)codegen(n->left_child, scope);
 			}	
 			/* Handle assignment to an array location */
 			else if(n->left_child->getName() == "varIndex"){
 				storing = true;
-
-				/* TODO: Fix this, at the moment we've got pointers to pointers... */
-				llvm::AllocaInst* ptr = 0;
-				id = n->left_child->left_child->getID();
-				int indx = n->left_child->right_child->val;
-				// std::cout << "handling indexed array assignment " << id << "[" << indx << "]\n";
-
-				for(int i=scope; i>=0; i--){
-					// std::cout << "Checking scope " << i << " for variable " << id << std::endl;
-					if (vars[i].count(id)) {
-						// std::cout << "ptr found in scope " << i << std::endl;
-						ptr = vars[i][id];
-						break;
-					}
-				}
-				Alloca = (llvm::AllocaInst* )Builder.CreateConstGEP1_32(ptr, indx);
+				Alloca = (llvm::AllocaInst*)codegen(n->left_child, scope);
 			}
 			storing = false;
 
@@ -374,6 +355,7 @@ void* IRGen::codegen(Node*n, int scope){
 			/* TODO: Fix this, at the moment we've got pointers to pointers... */
 
 			llvm::AllocaInst* ptr = 0;
+			int scope_found = 0;
 			int indx = n->right_child->val;
 			std::string id = n->left_child->getID();
 			// std::cout << "handling array index " << id << "[" << indx << "]" << std::endl;
@@ -381,11 +363,22 @@ void* IRGen::codegen(Node*n, int scope){
 				// std::cout << "Checking scope " << i << " for variable " << id << std::endl;
 				if (vars[i].count(id)) {
 					// std::cout << "ptr found in scope " << i << std::endl;
-					ptr = vars[i][id];
+					scope_found = i;
 					break;
 				}
 			}
-			return Builder.CreateConstGEP1_32(ptr, indx);
+			if (scope_found > 0){
+
+				if(storing){
+					std::cerr << "We can't handle storing into local arrays yet" << std::endl;
+				}else{
+					std::cerr << "We can't handle references to local arrays yet" << std::endl;
+				}
+			}
+			else{
+				std::cerr << "We can't handle references to global arrays yet " << std::endl;
+
+			}			
 		}
 				/****************************************************
 				 *			handle function call 					*

@@ -1,3 +1,6 @@
+int globalArray[10];
+int globalVar;
+
 int same(int a){
 
 	while(a < 100){
@@ -47,5 +50,4 @@ int main(void){
 
 
 	f(10, 100, a);
-
 }

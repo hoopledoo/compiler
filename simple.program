@@ -21,7 +21,10 @@ int function(int ar[], int a, int b){
 }
 
 int otherfunc(void){
+	int localArray[10];
 	int a;
+
+	localArray[0] = 1;
 	{
 		int a;
 		{
