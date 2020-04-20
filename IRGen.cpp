@@ -217,7 +217,13 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 			else{
 				// std::cerr << "Declaring global array" << std::endl;
 				llvm::ArrayType* ArrayType = llvm::ArrayType::get(llvm::IntegerType::getInt32Ty(TheContext), size);
-				return TheModule->getOrInsertGlobal(id, ArrayType);
+				TheModule->getOrInsertGlobal(id, ArrayType);
+				llvm::GlobalVariable* GVar = TheModule->getGlobalVariable(id);
+				GVar->setConstant(false);
+				llvm::ConstantAggregateZero* ConstArray = llvm::ConstantAggregateZero::get(ArrayType);
+				GVar->setInitializer(ConstArray);
+
+				return GVar;
 			}
 		}	
 				/****************************************************

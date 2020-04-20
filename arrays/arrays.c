@@ -8,17 +8,18 @@ int main(int argc, char** argv){
 	int localArray[10];
 	int x;
 
-	/* globalArray[0] = 1;
+	globalArray[0] = 100;
 	x = globalArray[0]; 
-	output(x); */
+	output(x); 
 
 	x = input();
 	output(x);
 
-	
+	/*
 	localArray[0] = 1;
 	output(localArray[0]);
 	x = localArray[0];
+	*/
 	
 
 	/* callee(globalArray, localArray); */
