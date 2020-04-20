@@ -54,12 +54,14 @@ void IRGen::generateIR(Node* root){
 	// insert the input() and output() functions
 	std::vector<llvm::Type*> argList(0);
 	llvm::FunctionType* FT = llvm::FunctionType::get(llvm::Type::getInt32Ty(TheContext), argList, false);
-	llvm::Function *inF = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, "input", nullptr);
+	llvm::Function *inF = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, "input", module);
+	//TheModule->getOrInsertFunction("input", FT, llvm::Function::ExternalLinkage);
 	funcs["input"] = inF;
 
 	argList.push_back(llvm::Type::getInt32Ty(TheContext));
 	FT = llvm::FunctionType::get(llvm::Type::getVoidTy(TheContext), argList, false);
-	llvm::Function *outF = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, "output", nullptr);
+	llvm::Function *outF = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, "output", module);
+	//TheModule->getOrInsertFunction("output", FT, llvm::Function::ExternalLinkage);
 	funcs["output"] = outF;
 
 	// Generate the code for the entire module
