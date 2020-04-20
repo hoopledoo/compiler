@@ -312,6 +312,26 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 			// After building everything else, insert our Return Block
 			F->getBasicBlockList().push_back(ReturnBlock);
 
+			// We want to loop through all blocks, and ensure none of them are empty
+			// and that they have a proper terminator.
+			// If they don't have a proper terminator, assume that they will just fall through
+			// to the next basic block
+			auto FunctionBBIt = F->getBasicBlockList().begin();
+
+			while(FunctionBBIt != F->getBasicBlockList().end()){
+				llvm::BasicBlock *FunctionBB = &(*FunctionBBIt);
+				std::cout << "Basic Block size: " << FunctionBB->size() << " ";
+				std::cout << "Terminator: " << FunctionBB->getTerminator() << std::endl;
+				if (not FunctionBB->getTerminator()){
+					std::cout << "Inserting branch to next basic block in BB: " << FunctionBB << std::endl;
+					Builder.SetInsertPoint(FunctionBB);
+					Builder.CreateBr(&(*(++FunctionBBIt)));
+				}
+				else{
+					++FunctionBBIt;
+				}
+			}
+
   			// Validate the generated code, checking for consistency.
   			llvm::verifyFunction(*F);
 
@@ -502,7 +522,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 
 			// First, figure out if we're dealing with if then else or just if then
 			Node* condition = n->left_child;
-			llvm::Value* CondV = (llvm::Value *)codegen(condition, scope);
+			//llvm::Value* CondV = (llvm::Value *)codegen(condition, scope);
 			Node* do_node = condition->right_sib;
 
 			llvm::Function* CurrFunction = Builder.GetInsertBlock()->getParent();
