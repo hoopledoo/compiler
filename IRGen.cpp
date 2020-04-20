@@ -320,10 +320,10 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 
 			while(FunctionBBIt != F->getBasicBlockList().end()){
 				llvm::BasicBlock *FunctionBB = &(*FunctionBBIt);
-				std::cout << "Basic Block size: " << FunctionBB->size() << " ";
-				std::cout << "Terminator: " << FunctionBB->getTerminator() << std::endl;
+				// std::cout << "Basic Block size: " << FunctionBB->size() << " ";
+				// std::cout << "Terminator: " << FunctionBB->getTerminator() << std::endl;
 				if (not FunctionBB->getTerminator()){
-					std::cout << "Inserting branch to next basic block in BB: " << FunctionBB << std::endl;
+					// std::cout << "Inserting branch to next basic block in BB: " << FunctionBB << std::endl;
 					Builder.SetInsertPoint(FunctionBB);
 					Builder.CreateBr(&(*(++FunctionBBIt)));
 				}
@@ -360,7 +360,21 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 			}
 			else {
 				llvm::Value* GlobalVar = TheModule->getNamedValue(n->getID());
-				return Builder.CreateLoad(GlobalVar);
+
+				// Handle passing global arrays as function arguments
+				if(GlobalVar->getType()->getPointerElementType()->isArrayTy()){
+
+					std::vector<llvm::Value*> ArrayLocVec;
+					llvm::Value* ConstZero = llvm::ConstantInt::get(TheContext, llvm::APInt(32, 0, true));
+					ArrayLocVec.push_back(ConstZero);
+					ArrayLocVec.push_back(ConstZero);
+					llvm::ArrayRef<llvm::Value*> ArrayLoc(ArrayLocVec);
+					
+					return Builder.CreateGEP(GlobalVar, ArrayLoc);
+				}
+				else{
+					return Builder.CreateLoad(GlobalVar);
+				}
 			}
 
 			return 0;
@@ -396,8 +410,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 			llvm::Value* Alloca = 0;
 			int found_scope = 0;
 			llvm::Value* index = (llvm::Value *)codegen(n->right_child, scope);
-			// printValue(index);
-			// std::cout << std::endl;
+			
 			std::string id = n->left_child->getID();
 			// std::cout << "handling array index " << id << "[" << indx << "]" << std::endl;
 			for(int i=scope; i>=0; i--){
@@ -417,11 +430,10 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 				// Here, we effectively just need to get the pointer to the storage location
 				std::vector<llvm::Value*> ArrayLocVec;
 				llvm::Value* TargetAddr = 0;
+				llvm::Value* ConstZero = llvm::ConstantInt::get(TheContext, llvm::APInt(32, 0, true));
 
 				// Handle Local Array GetElementPtr
 				if(array_lens.count(found_scope) and array_lens[found_scope].count(id)){
-
-					llvm::Value* ConstZero = llvm::ConstantInt::get(TheContext, llvm::APInt(32, 0, true));
 					ArrayLocVec.push_back(ConstZero);
 					ArrayLocVec.push_back(index);
 					llvm::ArrayRef<llvm::Value*> ArrayLoc(ArrayLocVec);
@@ -488,6 +500,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 
 			while(arg){
 				llvm::Value* result = (llvm::Value* )codegen(arg, scope);
+
 				// printValue(result);
 				// std::cout << std::endl;
 				passingArgs.push_back(result);
