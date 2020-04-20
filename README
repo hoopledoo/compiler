@@ -45,3 +45,17 @@ This should incorporate the portions that were lacking on my previous submission
 - Propper Handling of Return Values
 
 It should also have fewer bugs than the previous submission
+
+
+To actually make use of the generated bitcode, we can run it with the llvm-provided JIT: (lli)
+
+To generate the necessary files for gcd.C- (after pre-compiling input.c and output.c)
+	./compiler gcd/gcd.C- 
+	cd gcd
+	llvm-link gcd.C-.ll input.ll output.ll | llvm-dis > gcd.ll
+	lli gcd.ll
+
+To generate the necessary files for sort.C- (after pre-compiling input.c and output.c)
+	./compiler sort/sort-10.C- 
+	cd sort
+	llvm-link sort-10.C-.ll input.ll output.ll | llvm-dis > sort.ll
