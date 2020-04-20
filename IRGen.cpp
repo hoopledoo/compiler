@@ -365,7 +365,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 						ArrayLocVec.push_back(ConstZero);
 						llvm::ArrayRef<llvm::Value*> ArrayLoc(ArrayLocVec);
 					
-						return Builder.CreateGEP(Alloca, ArrayLoc);
+						return Builder.CreateInBoundsGEP(Alloca, ArrayLoc);
 					}
 					else{
 						return Builder.CreateLoad(Alloca);
@@ -386,7 +386,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 					ArrayLocVec.push_back(ConstZero);
 					llvm::ArrayRef<llvm::Value*> ArrayLoc(ArrayLocVec);
 					
-					return Builder.CreateGEP(GlobalVar, ArrayLoc);
+					return Builder.CreateInBoundsGEP(GlobalVar, ArrayLoc);
 				}
 				else{
 					return Builder.CreateLoad(GlobalVar);
@@ -454,7 +454,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 					ArrayLocVec.push_back(index);
 					llvm::ArrayRef<llvm::Value*> ArrayLoc(ArrayLocVec);
 
-					TargetAddr = Builder.CreateGEP(Alloca, ArrayLoc);
+					TargetAddr = Builder.CreateInBoundsGEP(Alloca, ArrayLoc);
 				}
 				// Handle Param Passed as Ptr with GetElementPtr
 				else{
@@ -465,8 +465,8 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 					ArrayLocVec.push_back(index);
 					llvm::ArrayRef<llvm::Value*> ArrayLoc(ArrayLocVec);
 
-					//llvm::Value* LoadFrom = Builder.CreateGEP(llvm::Type::getInt32Ty(TheContext), ArrayAddr, ArrayLoc);
-					TargetAddr = Builder.CreateGEP(ArrayAddr, ArrayLoc);
+					//llvm::Value* LoadFrom = Builder.CreateInBoundsGEP(llvm::Type::getInt32Ty(TheContext), ArrayAddr, ArrayLoc);
+					TargetAddr = Builder.CreateInBoundsGEP(ArrayAddr, ArrayLoc);
 				}
 
 				// Return the Address we just found, if we're storing the value
@@ -489,7 +489,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 				ArrayLocVec.push_back(index);
 				llvm::ArrayRef<llvm::Value*> ArrayLoc(ArrayLocVec);
 
-				llvm::Value* DesiredLocation = Builder.CreateGEP(ArrayAddr, ArrayLocVec);
+				llvm::Value* DesiredLocation = Builder.CreateInBoundsGEP(ArrayAddr, ArrayLocVec);
 
 				if(storing){
 					return DesiredLocation;

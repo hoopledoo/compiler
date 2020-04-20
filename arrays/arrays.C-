@@ -1,0 +1,25 @@
+int globalArray[10];
+
+void callee(int x[], int y[]){
+	return;
+}
+
+int main(void){
+	int localArray[10];
+	int x;
+
+	globalArray[0] = 100;
+	x = globalArray[0]; 
+	output(x); 
+	
+	x = input();
+	output(x);
+
+	/* LOCAL ARRAYS WORK!
+	localArray[0] = 10;
+	output(localArray[0]);
+	x = localArray[0];
+	*/
+
+	/* callee(globalArray, localArray); */
+}
