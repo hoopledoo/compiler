@@ -55,13 +55,11 @@ void IRGen::generateIR(Node* root){
 	std::vector<llvm::Type*> argList(0);
 	llvm::FunctionType* FT = llvm::FunctionType::get(llvm::Type::getInt32Ty(TheContext), argList, false);
 	llvm::Function *inF = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, "input", module);
-	//TheModule->getOrInsertFunction("input", FT, llvm::Function::ExternalLinkage);
 	funcs["input"] = inF;
 
 	argList.push_back(llvm::Type::getInt32Ty(TheContext));
 	FT = llvm::FunctionType::get(llvm::Type::getVoidTy(TheContext), argList, false);
 	llvm::Function *outF = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, "output", module);
-	//TheModule->getOrInsertFunction("output", FT, llvm::Function::ExternalLinkage);
 	funcs["output"] = outF;
 
 	// Generate the code for the entire module
@@ -232,7 +230,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 
 			std::string rtype = n->left_child->getName();
 			std::string id = n->left_child->right_sib->getID();
-			std::cout << "\n\nfunction declaration for " << id << " in scope " << scope << std::endl;
+			//std::cout << "\n\nfunction declaration for " << id << " in scope " << scope << std::endl;
 			int num_params = 0;
 			
 			Node* param = n->left_child->right_sib->right_sib;
@@ -627,7 +625,10 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 			*/
 
 			// std::cout << "Branching to MergeBB " << std::endl;
-			Builder.CreateBr(MergeBB);
+			// Check to make sure there isn't already a successor:
+			if(not ThenBB->getTerminator()){
+				Builder.CreateBr(MergeBB);
+			}
 			ThenBB = Builder.GetInsertBlock();
 
 			if(else_node){
@@ -644,13 +645,21 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 					return nullptr;
 				}
 
-				Builder.CreateBr(MergeBB);
+				if(not ElseBB->getTerminator()){
+					Builder.CreateBr(MergeBB);
+				}
 				ElseBB = Builder.GetInsertBlock();
 			}
 
 			// std::cout << "Adding our MergeBB (ifcont) ... " <<  std::endl;
-			CurrFunction->getBasicBlockList().push_back(MergeBB);
-			Builder.SetInsertPoint(MergeBB);
+			// Make sure MergeBB has at least one predecessor before adding it in.
+			if(MergeBB->hasNPredecessorsOrMore(1)){
+				CurrFunction->getBasicBlockList().push_back(MergeBB);
+				Builder.SetInsertPoint(MergeBB);
+			}
+			else{
+				std::cout << "Encountered a Merge Block with no predecessors, continuing!" << std::endl;
+			}
 		}
 				/****************************************************
 				 *		handle scope change on compound stmt 		*
