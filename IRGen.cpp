@@ -552,19 +552,30 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 			llvm::Value* ThenV;
 			llvm::Value* ElseV;
 
-			// std::cout << "Adding branch instruction " << std::endl;
-			Builder.CreateCondBr(CondV, ThenBB, ElseBB);
+			if(else_node){
+				// std::cout << "Adding branch instruction for If/Else " << std::endl;
+				Builder.CreateCondBr(CondV, ThenBB, ElseBB);
+			}
+			else{
+				// std::cout << "Adding branch instruction for If " << std::endl;
+				Builder.CreateCondBr(CondV, ThenBB, MergeBB);
+			}
+
 
 			// std::cout << "Generating Then block " << std::endl;
 			Builder.SetInsertPoint(ThenBB);
 			ThenV = (llvm::Value *)codegen(then_node, scope);
+
+			/*
 			if(! ThenV) {
 				// std::cout << "Writing Then block " << std::endl;
 				// printValue(ThenV);
 				// std::cout << std::endl;
 				return nullptr;
 			}
+			*/
 
+			// std::cout << "Branching to MergeBB " << std::endl;
 			Builder.CreateBr(MergeBB);
 			ThenBB = Builder.GetInsertBlock();
 
@@ -586,6 +597,7 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 				ElseBB = Builder.GetInsertBlock();
 			}
 
+			// std::cout << "Adding our MergeBB (ifcont) ... " <<  std::endl;
 			CurrFunction->getBasicBlockList().push_back(MergeBB);
 			Builder.SetInsertPoint(MergeBB);
 		}
