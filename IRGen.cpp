@@ -349,15 +349,31 @@ llvm::Value* IRGen::codegen(Node*n, int scope, bool storing){
 				}
 			}
 
+			// Handle Local Vars
 			if(found_scope > 0) {
 				Alloca = vars[found_scope][n->getID()];
 				if(storing){
 					return Alloca;
 				}
 				else{
-					return Builder.CreateLoad(Alloca);
+					// Handle passing local arrays as function arguments
+					if(Alloca->getType()->getPointerElementType()->isArrayTy()){
+
+						std::vector<llvm::Value*> ArrayLocVec;
+						llvm::Value* ConstZero = llvm::ConstantInt::get(TheContext, llvm::APInt(32, 0, true));
+						ArrayLocVec.push_back(ConstZero);
+						ArrayLocVec.push_back(ConstZero);
+						llvm::ArrayRef<llvm::Value*> ArrayLoc(ArrayLocVec);
+					
+						return Builder.CreateGEP(Alloca, ArrayLoc);
+					}
+					else{
+						return Builder.CreateLoad(Alloca);
+					}
 				}
 			}
+
+			// Handle Global Vars
 			else {
 				llvm::Value* GlobalVar = TheModule->getNamedValue(n->getID());
 
